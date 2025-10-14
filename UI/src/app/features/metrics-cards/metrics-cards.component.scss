@@ -2,11 +2,15 @@
   display: block;
 }
 
-mat-card {
+.metric-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 20px rgba(15, 23, 42, 0.1);
   }
+}
+
+.metric-icon {
+  font-size: 1.8rem;
 }

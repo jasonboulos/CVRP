@@ -1,10 +1,5 @@
-<mat-drawer-container class="dashboard-container">
-  <mat-drawer
-    #drawer
-    class="w-[320px] bg-slate-50"
-    [mode]="(isHandset$ | async) ? 'over' : 'side'"
-    [opened]="!(isHandset$ | async)"
-  >
+<div class="dashboard-container">
+  <aside class="sidebar" [class.open]="sidebarOpen" [class.handset]="isHandset">
     <app-controls-panel
       [datasets]="datasets"
       [algorithms]="algorithms"
@@ -14,60 +9,69 @@
       (export)="onExport($event)"
       (configChange)="onConfigChanged($event)"
     ></app-controls-panel>
-  </mat-drawer>
+  </aside>
 
-  <mat-drawer-content class="h-full">
-    <div class="flex h-full flex-col">
-      <mat-toolbar color="primary" class="bg-slate-900 text-white shadow">
-        <button mat-icon-button (click)="drawer.toggle()" *ngIf="(isHandset$ | async) === true">
-          <mat-icon>menu</mat-icon>
-        </button>
-        <span class="text-base font-semibold tracking-wide">CVRP Explorer</span>
-        <span class="flex-1"></span>
-        <span class="hidden items-center gap-2 text-sm font-light sm:flex">
-          Mock frontend only
-          <mat-icon class="text-sm">cloud_off</mat-icon>
-        </span>
-      </mat-toolbar>
+  <div class="dashboard-main">
+    <header class="top-bar">
+      <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
+      <span class="title">CVRP Explorer</span>
+      <span class="status">Mock frontend only ⛅</span>
+    </header>
 
-      <mat-progress-bar *ngIf="isSolving" mode="indeterminate"></mat-progress-bar>
+    <div *ngIf="toastMessage" class="toast">{{ toastMessage }}</div>
 
-      <div class="flex-1 overflow-auto bg-slate-100/60 p-4 md:p-6">
-        <div class="grid gap-6 xl:grid-cols-[2fr,1fr]">
-          <app-map-view
-            class="min-h-[320px]"
-            [depot]="instance?.depot ?? null"
-            [customers]="instance?.customers ?? []"
-            [routes]="routes"
-            [highlightVehicle]="highlightVehicle"
-            [utilization]="utilization"
-          ></app-map-view>
+    <div class="loading-bar" *ngIf="isSolving">
+      <div class="indicator"></div>
+    </div>
 
-          <div class="flex flex-col gap-4">
-            <app-metrics-cards [metrics]="metrics"></app-metrics-cards>
-            <mat-tab-group mat-stretch-tabs backgroundColor="transparent" class="rounded-xl bg-white/80 p-2 shadow">
-              <mat-tab label="Routes">
-                <app-routes-tab
-                  class="block p-3"
-                  [routes]="routes"
-                  [highlightVehicle]="highlightVehicle"
-                  (highlightChange)="onHighlightChange($event)"
-                ></app-routes-tab>
-              </mat-tab>
-              <mat-tab label="Compare">
-                <app-compare-tab
-                  class="block p-3"
-                  [convergence]="solution?.convergence"
-                  [runtimeBreakdown]="solution?.runtimeBreakdown"
-                ></app-compare-tab>
-              </mat-tab>
-              <mat-tab label="Run log">
-                <app-run-log-tab class="block p-3" [log]="solution?.log"></app-run-log-tab>
-              </mat-tab>
-            </mat-tab-group>
+    <div class="content">
+      <div class="grid gap-6 xl:grid-cols-[2fr,1fr]">
+        <app-map-view
+          class="min-h-[320px]"
+          [depot]="instance?.depot ?? null"
+          [customers]="instance?.customers ?? []"
+          [routes]="routes"
+          [highlightVehicle]="highlightVehicle"
+          [utilization]="utilization"
+        ></app-map-view>
+
+        <div class="flex flex-col gap-4">
+          <app-metrics-cards [metrics]="metrics"></app-metrics-cards>
+          <div class="tabs">
+            <div class="tab-buttons">
+              <button type="button" [class.active]="activeTab === 'routes'" (click)="selectTab('routes')">
+                Routes
+              </button>
+              <button type="button" [class.active]="activeTab === 'compare'" (click)="selectTab('compare')">
+                Compare
+              </button>
+              <button type="button" [class.active]="activeTab === 'log'" (click)="selectTab('log')">
+                Run log
+              </button>
+            </div>
+            <div class="tab-panel" *ngIf="activeTab === 'routes'">
+              <app-routes-tab
+                class="block"
+                [routes]="routes"
+                [highlightVehicle]="highlightVehicle"
+                (highlightChange)="onHighlightChange($event)"
+              ></app-routes-tab>
+            </div>
+            <div class="tab-panel" *ngIf="activeTab === 'compare'">
+              <app-compare-tab
+                class="block"
+                [convergence]="solution?.convergence"
+                [runtimeBreakdown]="solution?.runtimeBreakdown"
+              ></app-compare-tab>
+            </div>
+            <div class="tab-panel" *ngIf="activeTab === 'log'">
+              <app-run-log-tab class="block" [log]="solution?.log"></app-run-log-tab>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </mat-drawer-content>
-</mat-drawer-container>
+  </div>
+
+  <div class="backdrop" *ngIf="isHandset && sidebarOpen" (click)="toggleSidebar()"></div>
+</div>

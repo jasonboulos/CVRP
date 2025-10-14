@@ -1,24 +1,23 @@
-<mat-card class="map-card h-full">
-  <mat-card-header class="flex items-center justify-between">
+<div class="map-card h-full">
+  <div class="map-card__header">
     <div>
-      <mat-card-title class="text-lg font-semibold">Route Map</mat-card-title>
-      <mat-card-subtitle class="text-xs uppercase tracking-wide text-slate-500">
+      <h3 class="text-lg font-semibold text-slate-800">Route Map</h3>
+      <p class="text-xs uppercase tracking-wide text-slate-500">
         Depot and customer layout ({{ customers.length }} customers)
-      </mat-card-subtitle>
+      </p>
     </div>
     <div class="flex items-center gap-2 text-xs text-slate-500">
-      <mat-icon color="primary">local_shipping</mat-icon>
-      Utilization {{ utilization | number: '1.0-1' }}%
+      🚚 Utilization {{ utilization | number: '1.0-1' }}%
     </div>
-  </mat-card-header>
+  </div>
 
-  <mat-card-content class="overflow-auto">
+  <div class="map-card__content">
     <div class="flex justify-center">
       <svg
         *ngIf="depot"
         [attr.width]="width"
         [attr.height]="height"
-        viewBox="0 0 {{ width }} {{ height }}"
+        [attr.viewBox]="'0 0 ' + width + ' ' + height"
         class="rounded-lg bg-slate-900/5 shadow-inner"
         id="cvrp-map"
       >
@@ -74,5 +73,5 @@
         </g>
       </svg>
     </div>
-  </mat-card-content>
-</mat-card>
+  </div>
+</div>

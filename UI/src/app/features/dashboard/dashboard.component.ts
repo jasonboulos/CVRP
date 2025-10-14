@@ -1,14 +1,5 @@
-import { AsyncPipe, NgIf } from '@angular/common';
-import { AfterViewInit, Component, OnDestroy, ViewChild, inject } from '@angular/core';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSidenav, MatSidenavModule } from '@angular/material/sidenav';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTabsModule } from '@angular/material/tabs';
-import { MatToolbarModule } from '@angular/material/toolbar';
-import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { map, shareReplay, Subscription } from 'rxjs';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Subscription, fromEvent } from 'rxjs';
 import {
   DashboardMetrics,
   DatasetDefinition,
@@ -16,57 +7,23 @@ import {
   RoutePlan,
   SolveResponse,
   SolverRunConfig,
+  AlgorithmSummary,
 } from '../../core/models';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { SolverAdapterService } from '../../core/services/solver-adapter.service';
 import { MetricsService } from '../../core/services/metrics.service';
 import { ExportService } from '../../core/services/export.service';
-import { ControlsPanelComponent } from '../controls-panel/controls-panel.component';
-import { MapViewComponent } from '../map-view/map-view.component';
-import { MetricsCardsComponent } from '../metrics-cards/metrics-cards.component';
-import { RoutesTabComponent } from '../routes-tab/routes-tab.component';
-import { CompareTabComponent } from '../compare-tab/compare-tab.component';
-import { RunLogTabComponent } from '../run-log-tab/run-log-tab.component';
 
 @Component({
   selector: 'app-dashboard',
-  standalone: true,
-  imports: [
-    AsyncPipe,
-    NgIf,
-    MatButtonModule,
-    MatIconModule,
-    MatProgressBarModule,
-    MatSidenavModule,
-    MatSnackBarModule,
-    MatTabsModule,
-    MatToolbarModule,
-    ControlsPanelComponent,
-    MapViewComponent,
-    MetricsCardsComponent,
-    RoutesTabComponent,
-    CompareTabComponent,
-    RunLogTabComponent,
-  ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
 })
-export class DashboardComponent implements AfterViewInit, OnDestroy {
+export class DashboardComponent implements OnInit, OnDestroy {
   private readonly mockDataService = inject(MockDataService);
   private readonly solverService = inject(SolverAdapterService);
   private readonly metricsService = inject(MetricsService);
   private readonly exportService = inject(ExportService);
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly breakpointObserver = inject(BreakpointObserver);
-
-  @ViewChild(MatSidenav) drawer?: MatSidenav;
-
-  readonly isHandset$ = this.breakpointObserver
-    .observe([Breakpoints.XSmall, Breakpoints.Small])
-    .pipe(
-      map((state) => state.matches),
-      shareReplay({ bufferSize: 1, refCount: true }),
-    );
 
   datasets: DatasetDefinition[] = [];
   config: SolverRunConfig = this.createDefaultConfig();
@@ -75,44 +32,66 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
   instance: ProblemInstance | null = null;
   highlightVehicle: number | null = null;
   isSolving = false;
+  isHandset = false;
+  sidebarOpen = true;
+  activeTab: 'routes' | 'compare' | 'log' = 'routes';
+  toastMessage: string | null = null;
 
   private readonly subscriptions = new Subscription();
-  private handset = false;
+  private toastTimeout: ReturnType<typeof setTimeout> | null = null;
 
   get routes(): RoutePlan[] {
     return this.solution?.routes ?? [];
   }
 
-  get algorithms() {
+  get algorithms(): AlgorithmSummary[] {
     return this.solverService.getAlgorithms();
   }
 
-  ngAfterViewInit(): void {
+  ngOnInit(): void {
     this.datasets = this.mockDataService.getDatasets();
     if (!this.config.datasetId && this.datasets.length > 0) {
       this.config.datasetId = this.datasets[0].id;
     }
     this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
+    this.updateBreakpoint(window.innerWidth);
+    this.sidebarOpen = !this.isHandset;
 
     this.subscriptions.add(
-      this.isHandset$.subscribe((isHandset) => {
-        this.handset = isHandset;
-        if (!isHandset) {
-          this.drawer?.open();
-        }
+      fromEvent<UIEvent>(window, 'resize').subscribe((event: UIEvent) => {
+        const target = event.target;
+        const width =
+          typeof target === 'object' && target !== null && 'innerWidth' in target
+            ? (target as Window).innerWidth
+            : window.innerWidth;
+        this.updateBreakpoint(width);
       }),
     );
   }
 
   ngOnDestroy(): void {
     this.subscriptions.unsubscribe();
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+      this.toastTimeout = null;
+    }
+  }
+
+  toggleSidebar(): void {
+    if (this.isHandset) {
+      this.sidebarOpen = !this.sidebarOpen;
+    }
+  }
+
+  selectTab(tab: 'routes' | 'compare' | 'log'): void {
+    this.activeTab = tab;
   }
 
   onRun(config: SolverRunConfig): void {
     this.config = { ...config };
     this.executeRun();
-    if (this.handset) {
-      this.drawer?.close();
+    if (this.isHandset) {
+      this.sidebarOpen = false;
     }
   }
 
@@ -133,7 +112,7 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
 
   async onExport(format: 'json' | 'png'): Promise<void> {
     if (!this.instance || !this.solution) {
-      this.snackBar.open('Run the solver before exporting.', undefined, { duration: 2500 });
+      this.showToast('Run the solver before exporting.');
       return;
     }
 
@@ -143,17 +122,17 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
         instance: this.instance,
         solution: this.solution,
       });
-      this.snackBar.open('Solution exported as JSON.', undefined, { duration: 2200 });
+      this.showToast('Solution exported as JSON.');
       return;
     }
 
     const svg = document.getElementById('cvrp-map') as SVGElement | null;
     if (!svg) {
-      this.snackBar.open('Map is not available for export.', undefined, { duration: 2200 });
+      this.showToast('Map is not available for export.');
       return;
     }
     await this.exportService.exportSvgAsPng(svg, 'cvrp-map.png');
-    this.snackBar.open('Map exported as PNG.', undefined, { duration: 2200 });
+    this.showToast('Map exported as PNG.');
   }
 
   onHighlightChange(vehicle: number | null): void {
@@ -183,7 +162,7 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
       this.highlightVehicle = null;
     } catch (error) {
       console.error(error);
-      this.snackBar.open('Failed to run mock solver.', undefined, { duration: 2500 });
+      this.showToast('Failed to run mock solver.');
     } finally {
       this.isSolving = false;
     }
@@ -207,4 +186,24 @@ export class DashboardComponent implements AfterViewInit, OnDestroy {
     };
   }
 
+  private updateBreakpoint(width: number): void {
+    const handset = width < 768;
+    if (handset !== this.isHandset) {
+      this.isHandset = handset;
+      if (!handset) {
+        this.sidebarOpen = true;
+      }
+    }
+  }
+
+  private showToast(message: string): void {
+    this.toastMessage = message;
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
+    }
+    this.toastTimeout = setTimeout(() => {
+      this.toastMessage = null;
+      this.toastTimeout = null;
+    }, 2200);
+  }
 }

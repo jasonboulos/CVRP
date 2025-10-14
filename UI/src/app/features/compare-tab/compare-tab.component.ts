@@ -1,12 +1,8 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import { MatCardModule } from '@angular/material/card';
 import { ConvergencePoint, RuntimeSlice } from '../../core/models';
 
 @Component({
   selector: 'app-compare-tab',
-  standalone: true,
-  imports: [CommonModule, MatCardModule],
   templateUrl: './compare-tab.component.html',
   styleUrls: ['./compare-tab.component.scss'],
 })

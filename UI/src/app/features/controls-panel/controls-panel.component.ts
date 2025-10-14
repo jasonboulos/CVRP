@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   Component,
   EventEmitter,
@@ -8,21 +7,9 @@ import {
   OnInit,
   Output,
   SimpleChanges,
-  computed,
-  inject,
-  signal,
 } from '@angular/core';
-import { FormControl, NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatMenuModule } from '@angular/material/menu';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSliderModule } from '@angular/material/slider';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { Subscription } from 'rxjs';
+import { FormControl, FormGroup, NonNullableFormBuilder } from '@angular/forms';
+import { Subscription, distinctUntilChanged } from 'rxjs';
 import {
   AlgorithmId,
   AlgorithmSummary,
@@ -33,37 +20,34 @@ import {
 
 @Component({
   selector: 'app-controls-panel',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatButtonModule,
-    MatCardModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
-    MatMenuModule,
-    MatSelectModule,
-    MatSliderModule,
-    MatTooltipModule,
-  ],
   templateUrl: './controls-panel.component.html',
   styleUrls: ['./controls-panel.component.scss'],
 })
 export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
-  @Input({ required: true }) datasets: DatasetDefinition[] = [];
-  @Input({ required: true }) algorithms: AlgorithmSummary[] = [];
-  @Input({ required: true }) config!: SolverRunConfig;
+  constructor(private readonly fb: NonNullableFormBuilder) {}
+
+  @Input() datasets: DatasetDefinition[] = [];
+  @Input() algorithms: AlgorithmSummary[] = [];
+  @Input() config!: SolverRunConfig;
 
   @Output() run = new EventEmitter<SolverRunConfig>();
   @Output() reset = new EventEmitter<void>();
   @Output() export = new EventEmitter<'json' | 'png'>();
   @Output() configChange = new EventEmitter<SolverRunConfig>();
 
-  private readonly fb = inject(NonNullableFormBuilder);
+  private readonly subscription = new Subscription();
+  private parameterSubscriptions: Subscription[] = [];
 
-  readonly form = this.fb.group({
-    datasetId: this.fb.control('', { validators: [] }),
+  readonly form: FormGroup<{
+    datasetId: FormControl<string>;
+    vehicles: FormGroup<{
+      count: FormControl<number>;
+      capacity: FormControl<number>;
+    }>;
+    algorithm: FormControl<AlgorithmId>;
+    seed: FormControl<string>;
+  }> = this.fb.group({
+    datasetId: this.fb.control(''),
     vehicles: this.fb.group({
       count: this.fb.control(3),
       capacity: this.fb.control(40),
@@ -72,22 +56,69 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     seed: this.fb.control('12345'),
   });
 
-  readonly parameterControls = signal<FormControl<number>[]>([]);
-  readonly selectedAlgorithm = computed(() =>
-    this.algorithms.find((algorithm) => algorithm.id === this.form.controls.algorithm.value),
-  );
+  parameterControls: FormControl<number>[] = [];
+  selectedAlgorithm: AlgorithmSummary | null = null;
+  exportMenuOpen = false;
 
-  private readonly subscription = new Subscription();
-  private parameterSubscriptions: Subscription[] = [];
+  get datasetDescription(): string | null {
+    const datasetId = this.form.controls.datasetId.value;
+    if (!datasetId) {
+      return null;
+    }
+    const dataset = this.datasets.find((datasetItem) => datasetItem.id === datasetId);
+    return dataset ? dataset.description : null;
+  }
+
+  get vehicleCount(): number {
+    return this.form.controls.vehicles.controls.count.value;
+  }
+
+  get vehicleCapacity(): number {
+    return this.form.controls.vehicles.controls.capacity.value;
+  }
 
   ngOnInit(): void {
-    this.subscription.add(this.form.valueChanges.subscribe(() => this.emitConfigChange()));
+    this.subscription.add(
+      this.form.controls.datasetId.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe(() => this.emitConfigChange()),
+    );
+
+    this.subscription.add(
+      this.form.controls.seed.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe(() => this.emitConfigChange()),
+    );
+
+    const vehiclesGroup = this.form.controls.vehicles.controls;
+    this.subscription.add(
+      vehiclesGroup.count.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe(() => this.emitConfigChange()),
+    );
+    this.subscription.add(
+      vehiclesGroup.capacity.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe(() => this.emitConfigChange()),
+    );
+
+    this.subscription.add(
+      this.form.controls.algorithm.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe((algorithm) => {
+          if (algorithm) {
+            this.setParameterControls(algorithm);
+          }
+        }),
+    );
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['config'] && this.config) {
       this.patchForm(this.config);
-      this.setParameterControls(this.config.algorithm);
+      this.setParameterControls(this.config.algorithm, this.config);
+    } else if (changes['algorithms'] && this.config) {
+      this.setParameterControls(this.config.algorithm, this.config);
     }
   }
 
@@ -98,59 +129,82 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   onRun(): void {
-    if (!this.config) {
-      return;
-    }
     this.run.emit(this.buildConfig());
   }
 
-  onReset(): void {
+  handleReset(): void {
     this.reset.emit();
   }
 
-  onExport(format: 'json' | 'png'): void {
+  handleExport(format: 'json' | 'png'): void {
+    this.exportMenuOpen = false;
     this.export.emit(format);
   }
 
-  onAlgorithmChanged(algorithm: AlgorithmId): void {
-    this.setParameterControls(algorithm);
-    this.emitConfigChange();
+  toggleExportMenu(): void {
+    this.exportMenuOpen = !this.exportMenuOpen;
   }
 
-  onValueChanged(): void {
-    this.emitConfigChange();
+  randomizeSeed(): void {
+    this.form.controls.seed.setValue(Date.now().toString());
   }
 
-  private setParameterControls(algorithm: AlgorithmId): void {
+  getParameterValue(index: number): number {
+    const control = this.parameterControls[index];
+    if (control) {
+      return control.value;
+    }
+    const parameter = this.selectedAlgorithm?.parameters[index];
+    return parameter ? parameter.defaultValue : 0;
+  }
+
+  private setParameterControls(algorithm: AlgorithmId, sourceConfig?: SolverRunConfig): void {
     this.parameterSubscriptions.forEach((sub) => sub.unsubscribe());
     this.parameterSubscriptions = [];
-    const parameters = this.algorithms.find((item) => item.id === algorithm)?.parameters ?? [];
-    const controls = parameters.map((parameter) => {
+    this.selectedAlgorithm = this.algorithms.find((item) => item.id === algorithm) ?? null;
+    const parameters = this.selectedAlgorithm?.parameters ?? [];
+    const parameterValues = sourceConfig?.parameters ?? {};
+
+    this.parameterControls = parameters.map((parameter) => {
       const control = new FormControl<number>(
-        this.config.parameters[parameter.key] ?? parameter.defaultValue,
+        parameterValues[parameter.key] ?? parameter.defaultValue,
         { nonNullable: true },
       );
-      this.parameterSubscriptions.push(control.valueChanges.subscribe(() => this.emitConfigChange()));
+      this.parameterSubscriptions.push(
+        control.valueChanges
+          .pipe(distinctUntilChanged())
+          .subscribe(() => this.emitConfigChange()),
+      );
       return control;
     });
-    this.parameterControls.set(controls);
+
+    if (!sourceConfig) {
+      this.emitConfigChange();
+    }
   }
 
   private patchForm(config: SolverRunConfig): void {
-    this.form.patchValue({
-      datasetId: config.datasetId,
-      vehicles: { ...config.vehicles },
-      algorithm: config.algorithm,
-      seed: config.seed,
-    });
+    this.form.patchValue(
+      {
+        datasetId: config.datasetId,
+        vehicles: { ...config.vehicles },
+        algorithm: config.algorithm,
+        seed: config.seed,
+      },
+      { emitEvent: false },
+    );
   }
 
   private buildConfig(): SolverRunConfig {
     const formValue = this.form.getRawValue();
     const parameters = this.collectParameterValues();
+    const vehicles: VehiclesConfig = {
+      count: formValue.vehicles.count,
+      capacity: formValue.vehicles.capacity,
+    };
     return {
       datasetId: formValue.datasetId,
-      vehicles: formValue.vehicles as VehiclesConfig,
+      vehicles,
       algorithm: formValue.algorithm,
       parameters,
       seed: formValue.seed,
@@ -158,13 +212,12 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   private collectParameterValues(): Record<string, number> {
-    const selected = this.selectedAlgorithm();
-    if (!selected) {
+    if (!this.selectedAlgorithm) {
       return {};
     }
     const result: Record<string, number> = {};
-    selected.parameters.forEach((parameter, index) => {
-      const control = this.parameterControls()[index];
+    this.selectedAlgorithm.parameters.forEach((parameter, index) => {
+      const control = this.parameterControls[index];
       result[parameter.key] = control?.value ?? parameter.defaultValue;
     });
     return result;

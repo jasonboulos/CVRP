@@ -1,9 +1,9 @@
 <div class="grid gap-4 md:grid-cols-2">
-  <mat-card class="p-4">
-    <div class="mb-3 flex items-center justify-between">
+  <div class="panel">
+    <div class="panel__header">
       <div>
-        <div class="text-sm font-semibold text-slate-700">Convergence trend</div>
-        <div class="text-xs text-slate-500">Mocked best distance improvement</div>
+        <div class="panel__title">Convergence trend</div>
+        <div class="panel__subtitle">Mocked best distance improvement</div>
       </div>
     </div>
     <div class="flex items-center justify-center">
@@ -22,13 +22,13 @@
         <div class="text-xs text-slate-400">Run a scenario to view convergence data.</div>
       </ng-template>
     </div>
-  </mat-card>
+  </div>
 
-  <mat-card class="p-4">
-    <div class="mb-3 flex items-center justify-between">
+  <div class="panel">
+    <div class="panel__header">
       <div>
-        <div class="text-sm font-semibold text-slate-700">Runtime breakdown</div>
-        <div class="text-xs text-slate-500">Stages of the mock solver</div>
+        <div class="panel__title">Runtime breakdown</div>
+        <div class="panel__subtitle">Stages of the mock solver</div>
       </div>
     </div>
     <div *ngIf="bars.length > 0; else runtimePlaceholder" class="flex flex-col gap-3">
@@ -45,5 +45,5 @@
     <ng-template #runtimePlaceholder>
       <div class="text-xs text-slate-400">Runtime metrics appear after running the solver.</div>
     </ng-template>
-  </mat-card>
+  </div>
 </div>

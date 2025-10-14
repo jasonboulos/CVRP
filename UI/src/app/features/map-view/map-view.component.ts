@@ -1,13 +1,8 @@
-import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
-import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
 import { Customer, Depot, RoutePlan } from '../../core/models';
 
 @Component({
   selector: 'app-map-view',
-  standalone: true,
-  imports: [CommonModule, MatCardModule, MatIconModule],
   templateUrl: './map-view.component.html',
   styleUrls: ['./map-view.component.scss'],
 })
@@ -57,7 +52,7 @@ export class MapViewComponent {
   }
 
   isRouteDimmed(route: RoutePlan): boolean {
-    if (!this.highlightVehicle) {
+    if (this.highlightVehicle === null) {
       return false;
     }
     return route.vehicle !== this.highlightVehicle;

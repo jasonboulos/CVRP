@@ -1,23 +1,25 @@
-<mat-card class="controls-panel h-full flex flex-col gap-4">
-  <mat-card-header class="items-start">
-    <mat-card-title class="text-lg font-semibold">Scenario Controls</mat-card-title>
-    <mat-card-subtitle class="text-xs uppercase tracking-wide text-slate-500">Configure the CVRP run</mat-card-subtitle>
-  </mat-card-header>
+<div class="controls-panel h-full flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow">
+  <header class="flex flex-col gap-1">
+    <h2 class="text-lg font-semibold text-slate-800">Scenario Controls</h2>
+    <p class="text-xs uppercase tracking-wide text-slate-500">Configure the CVRP run</p>
+  </header>
 
-  <mat-card-content class="flex-1 overflow-auto pr-1">
+  <div class="flex-1 overflow-auto pr-1">
     <form [formGroup]="form" class="flex flex-col gap-6">
       <section class="flex flex-col gap-3">
         <span class="text-sm font-medium text-slate-500">Dataset</span>
-        <mat-form-field appearance="outline" class="w-full">
-          <mat-label>Select dataset</mat-label>
-          <mat-select formControlName="datasetId" (selectionChange)="onValueChanged()">
-            <mat-option *ngFor="let dataset of datasets" [value]="dataset.id">
-              {{ dataset.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-        <p class="text-xs text-slate-500" *ngIf="form.value.datasetId as datasetId">
-          {{ datasets.find((item) => item.id === datasetId)?.description }}
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400" for="dataset-select">
+          Select dataset
+        </label>
+        <select
+          id="dataset-select"
+          formControlName="datasetId"
+          class="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+        >
+          <option *ngFor="let dataset of datasets" [value]="dataset.id">{{ dataset.name }}</option>
+        </select>
+        <p class="text-xs text-slate-500" *ngIf="datasetDescription">
+          {{ datasetDescription }}
         </p>
       </section>
 
@@ -27,95 +29,112 @@
           <div>
             <div class="flex justify-between text-xs font-medium text-slate-500">
               <span>Fleet size</span>
-              <span>{{ form.get('vehicles.count')?.value }}</span>
+              <span>{{ vehicleCount }}</span>
             </div>
-            <mat-slider min="1" max="8" step="1" discrete (input)="onValueChanged()">
-              <input matSliderThumb formControlName="count" />
-            </mat-slider>
+            <input
+              type="range"
+              min="1"
+              max="8"
+              step="1"
+              formControlName="count"
+              class="slider-thumb"
+            />
           </div>
           <div>
             <div class="flex justify-between text-xs font-medium text-slate-500">
               <span>Vehicle capacity</span>
-              <span>{{ form.get('vehicles.capacity')?.value }}</span>
+              <span>{{ vehicleCapacity }}</span>
             </div>
-            <mat-slider min="20" max="120" step="5" discrete (input)="onValueChanged()">
-              <input matSliderThumb formControlName="capacity" />
-            </mat-slider>
+            <input
+              type="range"
+              min="20"
+              max="120"
+              step="5"
+              formControlName="capacity"
+              class="slider-thumb"
+            />
           </div>
         </div>
       </section>
 
       <section class="flex flex-col gap-3">
         <span class="text-sm font-medium text-slate-500">Algorithm</span>
-        <mat-form-field appearance="outline">
-          <mat-label>Select algorithm</mat-label>
-          <mat-select formControlName="algorithm" (selectionChange)="onAlgorithmChanged($event.value)">
-            <mat-option *ngFor="let algorithm of algorithms" [value]="algorithm.id">
-              {{ algorithm.name }}
-            </mat-option>
-          </mat-select>
-        </mat-form-field>
-        <p class="text-xs text-slate-500" *ngIf="selectedAlgorithm() as algorithm">
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400" for="algorithm-select">
+          Select algorithm
+        </label>
+        <select
+          id="algorithm-select"
+          formControlName="algorithm"
+          class="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+        >
+          <option *ngFor="let algorithm of algorithms" [value]="algorithm.id">{{ algorithm.name }}</option>
+        </select>
+        <p class="text-xs text-slate-500" *ngIf="selectedAlgorithm as algorithm">
           {{ algorithm.description }}
         </p>
-        <div class="flex flex-col gap-4" *ngIf="selectedAlgorithm() as algorithm">
+        <div class="flex flex-col gap-4" *ngIf="selectedAlgorithm as algorithm">
           <div
             class="flex flex-col gap-2"
             *ngFor="let parameter of algorithm.parameters; index as idx"
           >
             <div class="flex justify-between text-xs font-medium text-slate-500">
               <span>{{ parameter.label }}</span>
-              <span>{{ parameterControls()[idx]?.value }}</span>
+              <span>{{ getParameterValue(idx) }}</span>
             </div>
-            <mat-slider
+            <input
+              type="range"
               [min]="parameter.min"
               [max]="parameter.max"
               [step]="parameter.step"
-              discrete
-              [matTooltip]="parameter.tooltip || ''"
-            >
-              <input matSliderThumb [formControl]="parameterControls()[idx]" />
-            </mat-slider>
+              [title]="parameter.tooltip || ''"
+              [formControl]="parameterControls[idx]"
+              class="slider-thumb"
+            />
           </div>
         </div>
       </section>
 
       <section class="flex flex-col gap-3">
         <span class="text-sm font-medium text-slate-500">Random seed</span>
-        <mat-form-field appearance="outline">
-          <mat-label>Seed</mat-label>
-          <input matInput formControlName="seed" (input)="onValueChanged()" />
-          <button matSuffix mat-icon-button type="button" aria-label="Randomize seed" (click)="form.controls.seed.setValue(Date.now().toString()); onValueChanged();">
-            <mat-icon>autorenew</mat-icon>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            formControlName="seed"
+            class="flex-1 rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            class="rounded border border-slate-200 px-2 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+            aria-label="Randomize seed"
+            (click)="randomizeSeed()"
+          >
+            ↻
           </button>
-        </mat-form-field>
+        </div>
       </section>
     </form>
-  </mat-card-content>
+  </div>
 
-  <mat-card-actions class="flex flex-col gap-2 pt-0">
+  <div class="flex flex-col gap-2 pt-0">
     <div class="flex gap-2">
-      <button mat-flat-button color="primary" class="flex-1" (click)="onRun()">
-        <mat-icon class="mr-2">play_arrow</mat-icon>
-        Run
+      <button type="button" class="btn-primary flex-1" (click)="onRun()">
+        ▶ Run
       </button>
-      <button mat-stroked-button color="primary" (click)="onReset()">
-        <mat-icon>restart_alt</mat-icon>
+      <button type="button" class="btn-secondary" (click)="handleReset()">
+        ⟳
       </button>
     </div>
-    <button mat-stroked-button class="w-full" [matMenuTriggerFor]="exportMenu">
-      <mat-icon class="mr-2">download</mat-icon>
-      Export
-    </button>
-    <mat-menu #exportMenu="matMenu">
-      <button mat-menu-item (click)="onExport('json')">
-        <mat-icon>data_object</mat-icon>
-        JSON solution
+    <div class="relative">
+      <button type="button" class="btn-secondary w-full" (click)="toggleExportMenu()">
+        ⬇ Export
       </button>
-      <button mat-menu-item (click)="onExport('png')">
-        <mat-icon>image</mat-icon>
-        Map snapshot
-      </button>
-    </mat-menu>
-  </mat-card-actions>
-</mat-card>
+      <div
+        *ngIf="exportMenuOpen"
+        class="absolute left-0 top-full z-10 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg"
+      >
+        <button type="button" class="menu-item" (click)="handleExport('json')">JSON solution</button>
+        <button type="button" class="menu-item" (click)="handleExport('png')">Map snapshot</button>
+      </div>
+    </div>
+  </div>
+</div>
