@@ -1,0 +1,16 @@
+.map-card {
+  height: 100%;
+
+  svg {
+    max-width: 100%;
+    transition: all 0.2s ease;
+  }
+
+  .routes polyline {
+    transition: stroke-opacity 0.2s ease;
+  }
+
+  text {
+    font-family: 'Inter', 'Roboto', sans-serif;
+  }
+}

@@ -1,0 +1,78 @@
+<mat-card class="map-card h-full">
+  <mat-card-header class="flex items-center justify-between">
+    <div>
+      <mat-card-title class="text-lg font-semibold">Route Map</mat-card-title>
+      <mat-card-subtitle class="text-xs uppercase tracking-wide text-slate-500">
+        Depot and customer layout ({{ customers.length }} customers)
+      </mat-card-subtitle>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-slate-500">
+      <mat-icon color="primary">local_shipping</mat-icon>
+      Utilization {{ utilization | number: '1.0-1' }}%
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="overflow-auto">
+    <div class="flex justify-center">
+      <svg
+        *ngIf="depot"
+        [attr.width]="width"
+        [attr.height]="height"
+        viewBox="0 0 {{ width }} {{ height }}"
+        class="rounded-lg bg-slate-900/5 shadow-inner"
+        id="cvrp-map"
+      >
+        <defs>
+          <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#cbd5f5" stroke-width="0.5" opacity="0.3" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+
+        <g class="routes">
+          <polyline
+            *ngFor="let route of routes; trackBy: trackByRoute"
+            [attr.points]="toPolyline(route.nodes)"
+            [attr.stroke]="route.color || '#3b82f6'"
+            stroke-width="4"
+            fill="none"
+            [attr.stroke-opacity]="isRouteDimmed(route) ? 0.2 : 0.9"
+          ></polyline>
+        </g>
+
+        <g class="customers">
+          <g *ngFor="let customer of customers">
+            <circle
+              [attr.cx]="scaleX(customer.x)"
+              [attr.cy]="scaleY(customer.y)"
+              r="7"
+              class="fill-white stroke-slate-700"
+            >
+              <title>
+                Customer {{ customer.id }} • Demand: {{ customer.demand }}
+              </title>
+            </circle>
+            <text
+              [attr.x]="scaleX(customer.x) + 10"
+              [attr.y]="scaleY(customer.y) + 4"
+              class="text-xs fill-slate-600"
+            >
+              {{ customer.id }}
+            </text>
+          </g>
+        </g>
+
+        <g class="depot" *ngIf="depot as depotPoint">
+          <circle [attr.cx]="scaleX(depotPoint.x)" [attr.cy]="scaleY(depotPoint.y)" r="10" class="fill-black" />
+          <text
+            [attr.x]="scaleX(depotPoint.x) + 14"
+            [attr.y]="scaleY(depotPoint.y) + 4"
+            class="text-sm font-semibold fill-slate-700"
+          >
+            Depot
+          </text>
+        </g>
+      </svg>
+    </div>
+  </mat-card-content>
+</mat-card>

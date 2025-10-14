@@ -1,0 +1,13 @@
+<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+  <mat-card
+    *ngFor="let tile of tiles"
+    class="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white/80 px-4 py-3 shadow-sm backdrop-blur"
+  >
+    <div>
+      <div class="text-xs uppercase tracking-wide text-slate-500">{{ tile.label }}</div>
+      <div class="text-xl font-semibold text-slate-800">{{ tile.value }}</div>
+      <div *ngIf="tile.helper" class="text-[10px] uppercase tracking-wide text-slate-400">{{ tile.helper }}</div>
+    </div>
+    <mat-icon class="text-3xl" [ngClass]="tile.accent">{{ tile.icon }}</mat-icon>
+  </mat-card>
+</div>

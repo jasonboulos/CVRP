@@ -1,0 +1,121 @@
+<mat-card class="controls-panel h-full flex flex-col gap-4">
+  <mat-card-header class="items-start">
+    <mat-card-title class="text-lg font-semibold">Scenario Controls</mat-card-title>
+    <mat-card-subtitle class="text-xs uppercase tracking-wide text-slate-500">Configure the CVRP run</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content class="flex-1 overflow-auto pr-1">
+    <form [formGroup]="form" class="flex flex-col gap-6">
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Dataset</span>
+        <mat-form-field appearance="outline" class="w-full">
+          <mat-label>Select dataset</mat-label>
+          <mat-select formControlName="datasetId" (selectionChange)="onValueChanged()">
+            <mat-option *ngFor="let dataset of datasets" [value]="dataset.id">
+              {{ dataset.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <p class="text-xs text-slate-500" *ngIf="form.value.datasetId as datasetId">
+          {{ datasets.find((item) => item.id === datasetId)?.description }}
+        </p>
+      </section>
+
+      <section formGroupName="vehicles" class="flex flex-col gap-4">
+        <span class="text-sm font-medium text-slate-500">Vehicles</span>
+        <div class="grid grid-cols-1 gap-4">
+          <div>
+            <div class="flex justify-between text-xs font-medium text-slate-500">
+              <span>Fleet size</span>
+              <span>{{ form.get('vehicles.count')?.value }}</span>
+            </div>
+            <mat-slider min="1" max="8" step="1" discrete (input)="onValueChanged()">
+              <input matSliderThumb formControlName="count" />
+            </mat-slider>
+          </div>
+          <div>
+            <div class="flex justify-between text-xs font-medium text-slate-500">
+              <span>Vehicle capacity</span>
+              <span>{{ form.get('vehicles.capacity')?.value }}</span>
+            </div>
+            <mat-slider min="20" max="120" step="5" discrete (input)="onValueChanged()">
+              <input matSliderThumb formControlName="capacity" />
+            </mat-slider>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Algorithm</span>
+        <mat-form-field appearance="outline">
+          <mat-label>Select algorithm</mat-label>
+          <mat-select formControlName="algorithm" (selectionChange)="onAlgorithmChanged($event.value)">
+            <mat-option *ngFor="let algorithm of algorithms" [value]="algorithm.id">
+              {{ algorithm.name }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <p class="text-xs text-slate-500" *ngIf="selectedAlgorithm() as algorithm">
+          {{ algorithm.description }}
+        </p>
+        <div class="flex flex-col gap-4" *ngIf="selectedAlgorithm() as algorithm">
+          <div
+            class="flex flex-col gap-2"
+            *ngFor="let parameter of algorithm.parameters; index as idx"
+          >
+            <div class="flex justify-between text-xs font-medium text-slate-500">
+              <span>{{ parameter.label }}</span>
+              <span>{{ parameterControls()[idx]?.value }}</span>
+            </div>
+            <mat-slider
+              [min]="parameter.min"
+              [max]="parameter.max"
+              [step]="parameter.step"
+              discrete
+              [matTooltip]="parameter.tooltip || ''"
+            >
+              <input matSliderThumb [formControl]="parameterControls()[idx]" />
+            </mat-slider>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Random seed</span>
+        <mat-form-field appearance="outline">
+          <mat-label>Seed</mat-label>
+          <input matInput formControlName="seed" (input)="onValueChanged()" />
+          <button matSuffix mat-icon-button type="button" aria-label="Randomize seed" (click)="form.controls.seed.setValue(Date.now().toString()); onValueChanged();">
+            <mat-icon>autorenew</mat-icon>
+          </button>
+        </mat-form-field>
+      </section>
+    </form>
+  </mat-card-content>
+
+  <mat-card-actions class="flex flex-col gap-2 pt-0">
+    <div class="flex gap-2">
+      <button mat-flat-button color="primary" class="flex-1" (click)="onRun()">
+        <mat-icon class="mr-2">play_arrow</mat-icon>
+        Run
+      </button>
+      <button mat-stroked-button color="primary" (click)="onReset()">
+        <mat-icon>restart_alt</mat-icon>
+      </button>
+    </div>
+    <button mat-stroked-button class="w-full" [matMenuTriggerFor]="exportMenu">
+      <mat-icon class="mr-2">download</mat-icon>
+      Export
+    </button>
+    <mat-menu #exportMenu="matMenu">
+      <button mat-menu-item (click)="onExport('json')">
+        <mat-icon>data_object</mat-icon>
+        JSON solution
+      </button>
+      <button mat-menu-item (click)="onExport('png')">
+        <mat-icon>image</mat-icon>
+        Map snapshot
+      </button>
+    </mat-menu>
+  </mat-card-actions>
+</mat-card>

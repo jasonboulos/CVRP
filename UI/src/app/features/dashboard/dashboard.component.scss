@@ -1,0 +1,23 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.dashboard-container {
+  height: 100%;
+  background: #f1f5f9;
+}
+
+mat-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+mat-drawer {
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+mat-drawer-content {
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.8) 0%, #f8fafc 100%);
+}

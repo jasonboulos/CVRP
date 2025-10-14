@@ -1,0 +1,21 @@
+.route-card {
+  padding: 1rem;
+
+  &:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05);
+  }
+}
+
+table {
+  th {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+
+  td {
+    font-size: 0.875rem;
+  }
+}
