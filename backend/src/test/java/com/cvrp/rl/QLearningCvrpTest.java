@@ -4,7 +4,6 @@ import com.cvrp.mock.MockInstances;
 import com.cvrp.model.Instance;
 import com.cvrp.model.RoutePlan;
 import com.cvrp.model.SolveResult;
-import com.cvrp.model.VehiclesConfig;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,16 +24,19 @@ class QLearningCvrpTest {
         assertEquals(first.distance(), second.distance(), 1e-6, "deterministic distance for same seed");
         assertEquals(first.routes().size(), second.routes().size(), "deterministic route count");
 
-        VehiclesConfig vehicles = instance.vehicles();
         for (RoutePlan route : first.routes()) {
             assertFalse(route.nodes().isEmpty(), "route should include depot");
             assertEquals(0, route.nodes().get(0), "route must start at depot");
             assertEquals(0, route.nodes().get(route.nodes().size() - 1), "route must end at depot");
-            assertTrue(route.load() <= vehicles.capacity(), "route load within capacity");
+            int vehicleIdx = route.vehicle() - 1;
+            assertTrue(vehicleIdx >= 0, "vehicle indices are 1-based");
+            assertTrue(route.load() <= instance.vehicles().capacityOf(vehicleIdx), "route load within capacity");
         }
 
         assertTrue(first.distance() > 0.0, "distance should be positive");
         double sum = first.routes().stream().mapToDouble(RoutePlan::distance).sum();
         assertEquals(first.distance(), sum, 1.0, "route distances sum near total");
+        assertEquals(0, first.capacityViolations(), "no capacity violations expected");
+        assertTrue(first.runtimeMillis() >= 0, "runtime should be non-negative");
     }
 }

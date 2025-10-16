@@ -88,7 +88,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onRun(config: SolverRunConfig): void {
-    this.config = { ...config };
+    this.config = this.cloneConfig(config);
     this.executeRun();
     if (this.isHandset) {
       this.sidebarOpen = false;
@@ -96,7 +96,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onReset(): void {
-    this.config = this.createDefaultConfig();
+    this.config = this.cloneConfig(this.createDefaultConfig());
     this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
     this.solution = null;
     this.metrics = null;
@@ -104,7 +104,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   onConfigChanged(config: SolverRunConfig): void {
-    this.config = { ...config };
+    this.config = this.cloneConfig(config);
     this.instance = this.mockDataService.createInstance(config.datasetId, config.seed);
     this.solution = null;
     this.metrics = null;
@@ -150,6 +150,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     try {
       this.isSolving = true;
       this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
+      this.solution = null;
+      this.metrics = null;
+      this.highlightVehicle = null;
       const solution = await this.solverService.solve(
         this.instance,
         this.config.vehicles,
@@ -162,7 +165,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.highlightVehicle = null;
     } catch (error) {
       console.error(error);
-      this.showToast('Failed to run mock solver.');
+      if (this.config.algorithm === 'rl') {
+        this.showToast('RL solver request failed. Check that the backend is running.');
+      } else {
+        this.showToast('Failed to run mock solver.');
+      }
     } finally {
       this.isSolving = false;
     }
@@ -179,7 +186,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
     return {
       datasetId: 'city-grid',
-      vehicles: { count: 4, capacity: 60 },
+      vehicles: {
+        vehicles: Array.from({ length: 4 }, (_, index) => ({ id: index + 1, capacity: 60 })),
+      },
       algorithm: defaultAlgorithm,
       parameters,
       seed: '12345',
@@ -194,6 +203,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.sidebarOpen = true;
       }
     }
+  }
+
+  private cloneConfig(config: SolverRunConfig): SolverRunConfig {
+    return {
+      datasetId: config.datasetId,
+      vehicles: {
+        vehicles: config.vehicles.vehicles.map((vehicle) => ({ ...vehicle })),
+      },
+      algorithm: config.algorithm,
+      parameters: { ...config.parameters },
+      seed: config.seed,
+    };
   }
 
   private showToast(message: string): void {

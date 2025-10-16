@@ -47,9 +47,11 @@ public final class Main {
         long elapsed = stopwatch.elapsedMillis();
 
         System.out.println("Runtime: " + elapsed + " ms");
+        System.out.println("Solver runtime (internal): " + result.runtimeMillis() + " ms");
         System.out.println(String.format(Locale.US, "Distance: %.2f", result.distance()));
         System.out.println("Feasible: " + result.feasible());
         System.out.println("Vehicles used: " + result.vehiclesUsed());
+        System.out.println("Capacity violations: " + result.capacityViolations());
         for (RoutePlan route : result.routes()) {
             StringBuilder builder = new StringBuilder();
             builder.append("Vehicle ").append(route.vehicle()).append(": ");

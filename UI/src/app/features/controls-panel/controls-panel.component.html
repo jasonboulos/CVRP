@@ -41,18 +41,29 @@
             />
           </div>
           <div>
-            <div class="flex justify-between text-xs font-medium text-slate-500">
-              <span>Vehicle capacity</span>
-              <span>{{ vehicleCapacity }}</span>
+            <div class="flex items-center justify-between text-xs font-medium text-slate-500">
+              <span>Vehicle capacities</span>
+              <span>{{ vehicleCapacityControls.length }} total</span>
             </div>
-            <input
-              type="range"
-              min="20"
-              max="120"
-              step="5"
-              formControlName="capacity"
-              class="slider-thumb"
-            />
+            <div class="mt-2 grid gap-3 sm:grid-cols-2">
+              <div
+                *ngFor="let control of vehicleCapacityControls; index as idx"
+                class="rounded border border-slate-200 bg-slate-50 p-3"
+              >
+                <label class="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Vehicle {{ idx + 1 }}</span>
+                  <span>{{ control.value }}</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="200"
+                  step="1"
+                  [formControl]="control"
+                  class="mt-2 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -117,8 +128,12 @@
 
   <div class="flex flex-col gap-2 pt-0">
     <div class="flex gap-2">
-      <button type="button" class="btn-primary flex-1" (click)="onRun()">
-        ▶ Run
+      <button type="button" class="btn-primary flex-1" (click)="onRun()" [disabled]="solving">
+        <span *ngIf="solving" class="flex items-center justify-center gap-2">
+          <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-slate-600"></span>
+          Running…
+        </span>
+        <span *ngIf="!solving">▶ Run</span>
       </button>
       <button type="button" class="btn-secondary" (click)="handleReset()">
         ⟳

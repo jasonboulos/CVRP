@@ -93,6 +93,7 @@ export class MockDataService {
         throw new Error(`Unknown dataset id: ${datasetId}`);
       }
       return {
+        id: datasetId,
         name: preset.name,
         depot: { ...preset.depot },
         customers: preset.customers.map((customer) => ({ ...customer })),
@@ -102,6 +103,7 @@ export class MockDataService {
     const rng = createSeededRng(`${datasetId}-${seed}`);
     const count = 10 + rng.nextInt(21);
     return {
+      id: `${datasetId}-${seed}-${count}`,
       name: `Random ${count} customers`,
       depot: { id: 0, x: 50, y: 50 },
       customers: this.generateRandomCustomers(rng, count),

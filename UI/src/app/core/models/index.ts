@@ -11,9 +11,13 @@ export interface Customer {
   demand: number;
 }
 
-export interface VehiclesConfig {
-  count: number;
+export interface Vehicle {
+  id: number;
   capacity: number;
+}
+
+export interface VehiclesConfig {
+  vehicles: Vehicle[];
 }
 
 export interface RoutePlan {
@@ -56,6 +60,7 @@ export interface DatasetDefinition {
 }
 
 export interface ProblemInstance {
+  id: string;
   depot: Depot;
   customers: Customer[];
   name: string;

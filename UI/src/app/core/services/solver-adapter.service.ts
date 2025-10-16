@@ -1,4 +1,6 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import {
   AlgorithmId,
   AlgorithmParameterDefinition,
@@ -11,6 +13,7 @@ import {
 import { computeRouteDistance } from '../utils/distance';
 import { combineSeeds } from '../utils/seed';
 import { createSeededRng } from '../utils/random';
+import { environment } from '../../../environments/environment';
 
 interface BuildRoutesOptions {
   instance: ProblemInstance;
@@ -18,8 +21,27 @@ interface BuildRoutesOptions {
   rngSeed: string;
 }
 
+interface RlSolveApiResponse {
+  distance: number;
+  feasible: boolean;
+  vehiclesUsed: number;
+  routes: RoutePlan[];
+  violations: { capacity: number };
+  log: string[];
+  runtimeMs: number;
+}
+
+const RL_DEFAULTS = {
+  alpha: 0.3,
+  epsilon: 0.1,
+  bucketSize: 5,
+  maxSteps: 5_000,
+};
+
 @Injectable({ providedIn: 'root' })
 export class SolverAdapterService {
+  constructor(private readonly http: HttpClient) {}
+
   private readonly algorithms: Record<AlgorithmId, AlgorithmSummary> = {
     tabu: {
       id: 'tabu',
@@ -45,7 +67,7 @@ export class SolverAdapterService {
       description: 'Geometric cooling schedule with reheats.',
       parameters: [
         { key: 'startTemp', label: 'Start Temp', min: 10, max: 200, step: 5, defaultValue: 100 },
-        { key: 'cooling', label: 'Cooling Rate', min: 0.80, max: 0.99, step: 0.01, defaultValue: 0.92 },
+        { key: 'cooling', label: 'Cooling Rate', min: 0.8, max: 0.99, step: 0.01, defaultValue: 0.92 },
       ],
     },
     aco: {
@@ -60,9 +82,9 @@ export class SolverAdapterService {
     rl: {
       id: 'rl',
       name: 'Reinforcement Learning',
-      description: 'Policy gradient with experience replay.',
+      description: 'Tabular Q-learning baseline with seeded replay.',
       parameters: [
-        { key: 'episodes', label: 'Episodes', min: 50, max: 500, step: 10, defaultValue: 120 },
+        { key: 'episodes', label: 'Episodes', min: 50, max: 500, step: 10, defaultValue: 200 },
         { key: 'gamma', label: 'Gamma', min: 0.5, max: 0.99, step: 0.01, defaultValue: 0.9 },
       ],
     },
@@ -83,12 +105,23 @@ export class SolverAdapterService {
     parameters: Record<string, number>,
     seed: string,
   ): Promise<SolveResponse> {
-    const rngSeed = combineSeeds(seed, algorithm, vehicles.count, vehicles.capacity, instance.customers.length);
-    const { routes, totalDemand, capacityViolations } = this.buildRoutes({
-      instance,
-      vehicles,
-      rngSeed,
-    });
+    if (algorithm === 'rl') {
+      return this.solveWithBackend(instance, vehicles, parameters, seed);
+    }
+    return this.solveWithMock(instance, vehicles, algorithm, parameters, seed);
+  }
+
+  private async solveWithMock(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    algorithm: AlgorithmId,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+    const capacitiesKey = vehicles.vehicles.map((vehicle) => vehicle.capacity).join('-');
+    const rngSeed = combineSeeds(seed, algorithm, vehicleCount, capacitiesKey, instance.customers.length);
+    const { routes, totalDemand, capacityViolations } = this.buildRoutes({ instance, vehicles, rngSeed });
 
     const totalDistance = routes.reduce((sum, route) => sum + route.distance, 0);
     const runtimeRng = createSeededRng(`${rngSeed}-runtime`);
@@ -109,6 +142,8 @@ export class SolverAdapterService {
     const convergence = this.generateConvergence(runtimeRng, totalDistance);
     const runtimeBreakdown = this.generateRuntimeBreakdown(runtimeRng, runtimeMs);
 
+    const coloredRoutes = this.applyRouteColors(routes, vehicleCount);
+
     return new Promise((resolve) => {
       window.setTimeout(() => {
         resolve({
@@ -116,7 +151,7 @@ export class SolverAdapterService {
           runtimeMs,
           feasible,
           vehiclesUsed,
-          routes,
+          routes: coloredRoutes,
           violations: { capacity: capacityViolations },
           log,
           convergence,
@@ -127,6 +162,54 @@ export class SolverAdapterService {
     });
   }
 
+  private async solveWithBackend(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+    const payload = {
+      instance: {
+        id: instance.id,
+        depot: instance.depot,
+        customers: instance.customers,
+        vehicles: {
+          vehicles: vehicles.vehicles.map((vehicle, index) => ({
+            id: vehicle.id ?? index + 1,
+            capacity: Math.max(1, Math.round(vehicle.capacity)),
+          })),
+        },
+      },
+      params: {
+        episodes: Math.round(parameters['episodes'] ?? 200),
+        alpha: parameters['alpha'] ?? RL_DEFAULTS.alpha,
+        gamma: parameters['gamma'] ?? 0.9,
+        epsilon: parameters['epsilon'] ?? RL_DEFAULTS.epsilon,
+        bucketSize: Math.round(parameters['bucketSize'] ?? RL_DEFAULTS.bucketSize),
+        maxSteps: Math.round(parameters['maxSteps'] ?? RL_DEFAULTS.maxSteps),
+        seed,
+      },
+    };
+
+    const url = `${environment.apiBaseUrl}/api/rl/solve`;
+    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
+
+    return {
+      distance: Number(response.distance.toFixed(2)),
+      runtimeMs: response.runtimeMs,
+      feasible: response.feasible,
+      vehiclesUsed: response.vehiclesUsed,
+      routes: coloredRoutes,
+      violations: response.violations,
+      log: response.log,
+      convergence: undefined,
+      runtimeBreakdown: undefined,
+      gap: undefined,
+    };
+  }
+
   private buildRoutes({ instance, vehicles, rngSeed }: BuildRoutesOptions): {
     routes: RoutePlan[];
     totalDemand: number;
@@ -134,10 +217,12 @@ export class SolverAdapterService {
   } {
     const rng = createSeededRng(`${rngSeed}-routes`);
     const vehicleRoutes: RoutePlan[] = [];
-    const colors = this.getColorPalette(vehicles.count);
+    const colors = this.getColorPalette(this.getVehicleCount(vehicles));
+    const capacities = vehicles.vehicles.map((vehicle) => Math.max(1, Math.round(vehicle.capacity)));
 
-    for (let i = 0; i < vehicles.count; i += 1) {
-      vehicleRoutes.push({ vehicle: i + 1, nodes: [0, 0], load: 0, distance: 0, color: colors[i] });
+    for (let i = 0; i < capacities.length; i += 1) {
+      const vehicleId = vehicles.vehicles[i]?.id ?? i + 1;
+      vehicleRoutes.push({ vehicle: vehicleId, nodes: [0, 0], load: 0, distance: 0, color: colors[i] });
     }
 
     const shuffledCustomers = rng.shuffle(instance.customers);
@@ -146,11 +231,21 @@ export class SolverAdapterService {
 
     shuffledCustomers.forEach((customer) => {
       totalDemand += customer.demand;
-      const availableRoute = vehicleRoutes.find((route) => route.load + customer.demand <= vehicles.capacity);
-      const targetRoute = availableRoute ?? vehicleRoutes[rng.nextInt(vehicleRoutes.length)];
+      let chosenIndex = -1;
+      for (let i = 0; i < vehicleRoutes.length; i += 1) {
+        if (vehicleRoutes[i].load + customer.demand <= capacities[i]) {
+          chosenIndex = i;
+          break;
+        }
+      }
+      if (chosenIndex === -1) {
+        chosenIndex = rng.nextInt(vehicleRoutes.length);
+      }
+      const targetRoute = vehicleRoutes[chosenIndex];
+      const capacityLimit = capacities[chosenIndex];
 
-      if (targetRoute.load + customer.demand > vehicles.capacity) {
-        capacityViolations += targetRoute.load + customer.demand - vehicles.capacity;
+      if (targetRoute.load + customer.demand > capacityLimit) {
+        capacityViolations += targetRoute.load + customer.demand - capacityLimit;
       }
 
       targetRoute.nodes.splice(targetRoute.nodes.length - 1, 0, customer.id);
@@ -186,7 +281,7 @@ export class SolverAdapterService {
       capacityViolations > 0
         ? `Capacity violations detected: ${capacityViolations.toFixed(0)} units over capacity`
         : 'Solution is capacity-feasible',
-      `Runtime: ${(runtimeMs / 1000).toFixed(2)}s`
+      `Runtime: ${(runtimeMs / 1000).toFixed(2)}s`,
     ];
   }
 
@@ -231,5 +326,17 @@ export class SolverAdapterService {
       colors.push(palette[i % palette.length]);
     }
     return colors;
+  }
+
+  private applyRouteColors(routes: RoutePlan[], count: number): RoutePlan[] {
+    const palette = this.getColorPalette(Math.max(count, routes.length));
+    return routes.map((route, index) => ({
+      ...route,
+      color: route.color ?? palette[index % palette.length],
+    }));
+  }
+
+  private getVehicleCount(vehicles: VehiclesConfig): number {
+    return vehicles.vehicles.length;
   }
 }

@@ -8,6 +8,7 @@ import com.cvrp.model.VehiclesConfig;
 import com.cvrp.util.Distance;
 import com.cvrp.util.SeededRandom;
 import com.cvrp.util.Stopwatch;
+import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Service
 public class QLearningCvrp {
     private static final int RETURN_TO_DEPOT = -1;
 
@@ -31,37 +33,45 @@ public class QLearningCvrp {
         List<RoutePlan> bestAttemptRoutes = Collections.emptyList();
         int bestAttemptVehicles = 0;
 
+        int totalDemand = instance.customers().stream().mapToInt(Customer::demand).sum();
+        int totalCapacity = instance.vehicles().totalCapacity();
+        if (totalCapacity < totalDemand) {
+            log.add("Warning: total vehicle capacity " + totalCapacity + " < total demand " + totalDemand);
+        }
+
         for (int episode = 1; episode <= params.episodes(); episode++) {
             EpisodeResult result = runEpisode(instance, params, distanceMatrix, rng, qTable);
-            if (result.feasible()) {
-                if (result.totalDistance() < bestFeasibleDistance) {
-                    bestFeasibleDistance = result.totalDistance();
-                    bestFeasibleRoutes = result.routes();
-                    bestFeasibleVehicles = result.vehiclesUsed();
-                }
+            if (result.feasible() && result.totalDistance() < bestFeasibleDistance) {
+                bestFeasibleDistance = result.totalDistance();
+                bestFeasibleRoutes = result.routes();
+                bestFeasibleVehicles = result.vehiclesUsed();
             }
             if (result.totalDistance() < bestAttemptDistance) {
                 bestAttemptDistance = result.totalDistance();
                 bestAttemptRoutes = result.routes();
                 bestAttemptVehicles = result.vehiclesUsed();
             }
-            if (episode == 1 || episode % 50 == 0 || result.feasible() && result.totalDistance() <= bestFeasibleDistance) {
+            if (episode == 1
+                    || episode % 50 == 0
+                    || (result.feasible() && result.totalDistance() <= bestFeasibleDistance)) {
                 log.add("Episode " + episode + " best distance " + String.format("%.2f", bestAttemptDistance));
             }
         }
+
         long runtime = stopwatch.elapsedMillis();
 
-        double distance = bestFeasibleRoutes.isEmpty() ? bestAttemptDistance : bestFeasibleDistance;
         boolean feasible = !bestFeasibleRoutes.isEmpty();
         List<RoutePlan> chosenRoutes = feasible ? bestFeasibleRoutes : bestAttemptRoutes;
+        double distance = feasible ? bestFeasibleDistance : bestAttemptDistance;
         int vehiclesUsed = feasible ? bestFeasibleVehicles : bestAttemptVehicles;
-
         if (Double.isInfinite(distance)) {
             distance = Double.NaN;
         }
+
         log.add("Runtime: " + runtime + " ms");
 
-        return new SolveResult(distance, feasible, vehiclesUsed, chosenRoutes, List.copyOf(log));
+        int capacityViolations = computeCapacityViolations(chosenRoutes, instance.vehicles());
+        return new SolveResult(distance, feasible, vehiclesUsed, chosenRoutes, List.copyOf(log), runtime, capacityViolations);
     }
 
     private EpisodeResult runEpisode(
@@ -77,11 +87,12 @@ public class QLearningCvrp {
         int servedCount = 0;
         int currentNode = 0;
         int vehicleIdx = 0;
-        int remainingCapacity = vehiclesConfig.capacity();
+        int remainingCapacity = vehiclesConfig.capacityOf(vehicleIdx);
         int bucketSize = Math.max(1, params.bucketSize());
         List<RoutePlan> routes = new ArrayList<>();
         List<Integer> currentRouteNodes = new ArrayList<>();
-        currentRouteNodes.add(0);
+        int depotId = instance.depot().id();
+        currentRouteNodes.add(depotId);
         int currentRouteLoad = 0;
         double currentRouteDistance = 0.0;
         double totalDistance = 0.0;
@@ -90,64 +101,47 @@ public class QLearningCvrp {
         for (int step = 0; step < params.maxSteps(); step++) {
             int remainingCustomers = customerCount - servedCount;
             boolean allServed = remainingCustomers == 0;
-            boolean canReturn = (currentRouteNodes.size() > 1 && currentRouteNodes.get(currentRouteNodes.size() - 1) != 0)
-                    || (currentNode != 0 && currentRouteNodes.get(currentRouteNodes.size() - 1) != 0);
-            List<Integer> feasibleCustomers = new ArrayList<>();
-            if (!allServed) {
-                for (int i = 0; i < customerCount; i++) {
-                    if (served[i + 1]) {
-                        continue;
-                    }
-                    Customer customer = customers.get(i);
-                    if (customer.demand() <= remainingCapacity) {
-                        feasibleCustomers.add(i + 1);
-                    }
-                }
-            }
-            List<Integer> actions = new ArrayList<>(feasibleCustomers);
-            if (canReturn) {
-                actions.add(RETURN_TO_DEPOT);
-            }
+            boolean mustReturn = allServed && currentNode != 0;
+            List<Integer> actions = computeActions(currentNode, remainingCapacity, served, customers, mustReturn);
             if (actions.isEmpty()) {
-                feasible = allServed;
+                feasible = allServed && currentNode == 0;
                 break;
             }
 
             StateKey state = new StateKey(
                     currentNode,
-                    remainingCapacity / bucketSize,
+                    Math.max(0, remainingCapacity) / bucketSize,
                     remainingCustomers / bucketSize,
                     vehicleIdx);
             Map<Integer, Double> qValues = qTable.computeIfAbsent(state, key -> new HashMap<>());
             for (int action : actions) {
                 qValues.putIfAbsent(action, 0.0);
             }
-            int chosenAction = chooseAction(actions, qValues, params.epsilon(), rng);
 
+            int chosenAction = chooseAction(actions, qValues, params.epsilon(), rng);
             double reward;
             boolean terminal = false;
-            StateKey nextState = null;
 
             if (chosenAction == RETURN_TO_DEPOT) {
                 double added = currentNode == 0 ? 0.0 : distanceMatrix[currentNode][0];
                 reward = -added;
-                if (currentRouteNodes.size() > 1 && currentRouteNodes.get(currentRouteNodes.size() - 1) != 0) {
-                    if (currentRouteNodes.get(currentRouteNodes.size() - 1) != 0) {
-                        currentRouteNodes.add(0);
-                    }
-                    if (added > 0) {
-                        currentRouteDistance += added;
-                        totalDistance += added;
-                    }
+                if (currentNode != 0) {
+                    currentRouteNodes.add(depotId);
+                }
+                if (added > 0) {
+                    totalDistance += added;
+                    currentRouteDistance += added;
+                }
+                if (currentRouteNodes.size() > 1) {
                     routes.add(new RoutePlan(
-                            vehicleIdx,
+                            vehicleIdx + 1,
                             List.copyOf(currentRouteNodes),
                             currentRouteLoad,
                             currentRouteDistance));
                 }
                 currentNode = 0;
                 currentRouteNodes = new ArrayList<>();
-                currentRouteNodes.add(0);
+                currentRouteNodes.add(depotId);
                 currentRouteLoad = 0;
                 currentRouteDistance = 0.0;
                 if (servedCount == customerCount) {
@@ -157,13 +151,7 @@ public class QLearningCvrp {
                     terminal = true;
                 } else {
                     vehicleIdx += 1;
-                    remainingCapacity = vehiclesConfig.capacity();
-                    remainingCustomers = customerCount - servedCount;
-                    nextState = new StateKey(
-                            currentNode,
-                            remainingCapacity / bucketSize,
-                            remainingCustomers / bucketSize,
-                            vehicleIdx);
+                    remainingCapacity = vehiclesConfig.capacityOf(vehicleIdx);
                 }
             } else {
                 int customerIndex = chosenAction;
@@ -178,24 +166,33 @@ public class QLearningCvrp {
                 servedCount += 1;
                 remainingCapacity -= customer.demand();
                 currentRouteLoad += customer.demand();
-                remainingCustomers = customerCount - servedCount;
-                if (remainingCustomers == 0) {
+                if (servedCount == customerCount) {
                     reward += 10.0;
                 }
-                nextState = new StateKey(
-                        currentNode,
-                        Math.max(0, remainingCapacity) / bucketSize,
-                        remainingCustomers / bucketSize,
-                        vehicleIdx);
             }
 
+            StateKey nextState = new StateKey(
+                    currentNode,
+                    Math.max(0, remainingCapacity) / bucketSize,
+                    (customerCount - servedCount) / bucketSize,
+                    vehicleIdx);
+
             double nextMax = 0.0;
-            if (!terminal && nextState != null) {
-                Map<Integer, Double> nextValues = qTable.get(nextState);
-                if (nextValues != null && !nextValues.isEmpty()) {
+            if (!terminal) {
+                boolean nextMustReturn = (customerCount - servedCount) == 0 && currentNode != 0;
+                List<Integer> nextActions = computeActions(currentNode, remainingCapacity, served, customers, nextMustReturn);
+                Map<Integer, Double> nextValues = qTable.computeIfAbsent(nextState, key -> new HashMap<>());
+                for (int action : nextActions) {
+                    nextValues.putIfAbsent(action, 0.0);
+                }
+                if (!nextActions.isEmpty()) {
                     nextMax = nextValues.values().stream().mapToDouble(Double::doubleValue).max().orElse(0.0);
+                } else {
+                    terminal = true;
+                    feasible = feasible && (customerCount - servedCount) == 0 && currentNode == 0;
                 }
             }
+
             double currentQ = qValues.getOrDefault(chosenAction, 0.0);
             double updatedQ = currentQ + params.alpha() * (reward + params.gamma() * nextMax - currentQ);
             qValues.put(chosenAction, updatedQ);
@@ -205,19 +202,49 @@ public class QLearningCvrp {
             }
         }
 
-        if (currentRouteNodes.size() > 1 && currentRouteNodes.get(currentRouteNodes.size() - 1) != 0) {
-            double added = currentNode == 0 ? 0.0 : distanceMatrix[currentNode][0];
-            if (currentRouteNodes.get(currentRouteNodes.size() - 1) != 0) {
-                currentRouteNodes.add(0);
+        if (currentRouteNodes.size() > 1) {
+            if (currentRouteNodes.get(currentRouteNodes.size() - 1) != depotId) {
+                double added = currentNode == 0 ? 0.0 : distanceMatrix[currentNode][0];
+                if (added > 0) {
+                    totalDistance += added;
+                    currentRouteDistance += added;
+                }
+                currentRouteNodes.add(depotId);
             }
-            if (added > 0) {
-                totalDistance += added;
-                currentRouteDistance += added;
-            }
-            routes.add(new RoutePlan(vehicleIdx, List.copyOf(currentRouteNodes), currentRouteLoad, currentRouteDistance));
+            routes.add(new RoutePlan(vehicleIdx + 1, List.copyOf(currentRouteNodes), currentRouteLoad, currentRouteDistance));
         }
 
+        feasible = feasible && servedCount == customerCount;
         return new EpisodeResult(totalDistance, feasible, List.copyOf(routes), routes.size());
+    }
+
+    private List<Integer> computeActions(
+            int currentNode,
+            int remainingCapacity,
+            boolean[] served,
+            List<Customer> customers,
+            boolean mustReturn) {
+        List<Integer> actions = new ArrayList<>();
+        if (!mustReturn) {
+            for (int idx = 1; idx <= customers.size(); idx++) {
+                if (served[idx]) {
+                    continue;
+                }
+                Customer customer = customers.get(idx - 1);
+                if (customer.demand() <= remainingCapacity) {
+                    actions.add(idx);
+                }
+            }
+        }
+        if (currentNode != 0) {
+            if (mustReturn) {
+                actions.clear();
+                actions.add(RETURN_TO_DEPOT);
+            } else {
+                actions.add(RETURN_TO_DEPOT);
+            }
+        }
+        return actions;
     }
 
     private int chooseAction(List<Integer> actions, Map<Integer, Double> qValues, double epsilon, SeededRandom rng) {
@@ -244,6 +271,21 @@ public class QLearningCvrp {
         }
         Collections.sort(bestActions);
         return bestActions.get(rng.nextInt(bestActions.size()));
+    }
+
+    private int computeCapacityViolations(List<RoutePlan> routes, VehiclesConfig vehiclesConfig) {
+        int violations = 0;
+        for (RoutePlan route : routes) {
+            int vehicleIdx = route.vehicle() - 1;
+            if (vehicleIdx < 0 || vehicleIdx >= vehiclesConfig.count()) {
+                continue;
+            }
+            int capacity = vehiclesConfig.capacityOf(vehicleIdx);
+            if (route.load() > capacity) {
+                violations += route.load() - capacity;
+            }
+        }
+        return violations;
     }
 
     private record StateKey(int currentNode, int capacityBucket, int remainingBucket, int vehicleIdx) {

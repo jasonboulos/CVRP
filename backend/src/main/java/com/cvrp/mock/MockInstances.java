@@ -3,6 +3,7 @@ package com.cvrp.mock;
 import com.cvrp.model.Customer;
 import com.cvrp.model.Depot;
 import com.cvrp.model.Instance;
+import com.cvrp.model.Vehicle;
 import com.cvrp.model.VehiclesConfig;
 import com.cvrp.util.SeededRandom;
 
@@ -27,7 +28,12 @@ public final class MockInstances {
             int demand = 5 + random.nextInt(6);
             customers.add(new Customer(i + 1, x, y, demand));
         }
-        VehiclesConfig vehiclesConfig = new VehiclesConfig(4, 40);
+        List<Vehicle> vehicles = List.of(
+                new Vehicle(0, 42),
+                new Vehicle(1, 38),
+                new Vehicle(2, 40),
+                new Vehicle(3, 36));
+        VehiclesConfig vehiclesConfig = new VehiclesConfig(vehicles);
         return new Instance("tiny15", depot, List.copyOf(customers), vehiclesConfig);
     }
 
@@ -48,7 +54,13 @@ public final class MockInstances {
                 customers.add(new Customer(id, x, y, demand));
             }
         }
-        VehiclesConfig vehiclesConfig = new VehiclesConfig(5, 40);
+        List<Vehicle> vehicles = List.of(
+                new Vehicle(0, 36),
+                new Vehicle(1, 40),
+                new Vehicle(2, 34),
+                new Vehicle(3, 38),
+                new Vehicle(4, 42));
+        VehiclesConfig vehiclesConfig = new VehiclesConfig(vehicles);
         return new Instance("grid20", depot, List.copyOf(customers), vehiclesConfig);
     }
 }

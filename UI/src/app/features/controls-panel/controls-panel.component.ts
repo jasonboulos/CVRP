@@ -8,7 +8,7 @@ import {
   Output,
   SimpleChanges,
 } from '@angular/core';
-import { FormControl, FormGroup, NonNullableFormBuilder } from '@angular/forms';
+import { FormArray, FormControl, FormGroup, NonNullableFormBuilder } from '@angular/forms';
 import { Subscription, distinctUntilChanged } from 'rxjs';
 import {
   AlgorithmId,
@@ -29,6 +29,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   @Input() datasets: DatasetDefinition[] = [];
   @Input() algorithms: AlgorithmSummary[] = [];
   @Input() config!: SolverRunConfig;
+  @Input() solving = false;
 
   @Output() run = new EventEmitter<SolverRunConfig>();
   @Output() reset = new EventEmitter<void>();
@@ -42,7 +43,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     datasetId: FormControl<string>;
     vehicles: FormGroup<{
       count: FormControl<number>;
-      capacity: FormControl<number>;
+      capacities: FormArray<FormControl<number>>;
     }>;
     algorithm: FormControl<AlgorithmId>;
     seed: FormControl<string>;
@@ -50,7 +51,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     datasetId: this.fb.control(''),
     vehicles: this.fb.group({
       count: this.fb.control(3),
-      capacity: this.fb.control(40),
+      capacities: this.fb.array<FormControl<number>>([]),
     }),
     algorithm: this.fb.control<AlgorithmId>('tabu'),
     seed: this.fb.control('12345'),
@@ -70,11 +71,15 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   get vehicleCount(): number {
-    return this.form.controls.vehicles.controls.count.value;
+    return this.form.controls.vehicles.controls.capacities.length;
   }
 
-  get vehicleCapacity(): number {
-    return this.form.controls.vehicles.controls.capacity.value;
+  get vehicleCapacityControls(): FormControl<number>[] {
+    return this.form.controls.vehicles.controls.capacities.controls;
+  }
+
+  get capacitiesArray(): FormArray<FormControl<number>> {
+    return this.form.controls.vehicles.controls.capacities;
   }
 
   ngOnInit(): void {
@@ -91,14 +96,19 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     );
 
     const vehiclesGroup = this.form.controls.vehicles.controls;
+    this.ensureCapacityControls(vehiclesGroup.count.value, undefined, false);
     this.subscription.add(
-      vehiclesGroup.count.valueChanges
-        .pipe(distinctUntilChanged())
-        .subscribe(() => this.emitConfigChange()),
+      vehiclesGroup.count.valueChanges.pipe(distinctUntilChanged()).subscribe((count) => {
+        this.ensureCapacityControls(count, undefined, false);
+      }),
     );
     this.subscription.add(
-      vehiclesGroup.capacity.valueChanges
-        .pipe(distinctUntilChanged())
+      this.capacitiesArray.valueChanges
+        .pipe(
+          distinctUntilChanged((previous, current) =>
+            previous.length === current.length && previous.every((value, index) => value === current[index]),
+          ),
+        )
         .subscribe(() => this.emitConfigChange()),
     );
 
@@ -184,24 +194,31 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   private patchForm(config: SolverRunConfig): void {
+    const vehicleCapacities = config.vehicles.vehicles.map((vehicle) => vehicle.capacity);
     this.form.patchValue(
       {
         datasetId: config.datasetId,
-        vehicles: { ...config.vehicles },
+        vehicles: { count: config.vehicles.vehicles.length },
         algorithm: config.algorithm,
         seed: config.seed,
       },
       { emitEvent: false },
     );
+    this.ensureCapacityControls(config.vehicles.vehicles.length, vehicleCapacities, false);
   }
 
   private buildConfig(): SolverRunConfig {
     const formValue = this.form.getRawValue();
     const parameters = this.collectParameterValues();
     const vehicles: VehiclesConfig = {
-      count: formValue.vehicles.count,
-      capacity: formValue.vehicles.capacity,
+      vehicles: this.vehicleCapacityControls.map((control, index) => ({
+        id: index + 1,
+        capacity: Math.max(1, Math.round(control.value)),
+      })),
     };
+    if (formValue.vehicles.count !== vehicles.vehicles.length) {
+      this.form.controls.vehicles.controls.count.setValue(vehicles.vehicles.length, { emitEvent: false });
+    }
     return {
       datasetId: formValue.datasetId,
       vehicles,
@@ -225,5 +242,34 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
 
   private emitConfigChange(): void {
     this.configChange.emit(this.buildConfig());
+  }
+
+  private ensureCapacityControls(count: number, existing?: number[], emit = true): void {
+    const array = this.capacitiesArray;
+    const safeCount = Math.max(1, Math.min(8, Math.round(count) || 0));
+    let mutated = false;
+    while (array.length < safeCount) {
+      const previousValue = array.length > 0 ? array.at(array.length - 1).value : 60;
+      const nextValue = existing?.[array.length] ?? previousValue;
+      array.push(this.fb.control(Math.max(1, Math.round(nextValue))));
+      mutated = true;
+    }
+    while (array.length > safeCount) {
+      array.removeAt(array.length - 1);
+      mutated = true;
+    }
+    if (existing) {
+      existing.slice(0, array.length).forEach((value, index) => {
+        array.at(index).setValue(Math.max(1, Math.round(value)), { emitEvent: false });
+      });
+    }
+    const countControl = this.form.controls.vehicles.controls.count;
+    const countChanged = countControl.value !== safeCount;
+    if (countChanged) {
+      countControl.setValue(safeCount, { emitEvent: false });
+    }
+    if (emit || (!emit && !mutated && countChanged)) {
+      this.emitConfigChange();
+    }
   }
 }
