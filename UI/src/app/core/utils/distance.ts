@@ -36,3 +36,10 @@ export function computeRouteDistance(route: RoutePlan, depot: Depot, customers: 
   }
   return Number(distance.toFixed(2));
 }
+
+export function formatDistanceLabel(distance: number): string {
+  if (!Number.isFinite(distance) || distance <= 0) {
+    return '—';
+  }
+  return `${distance.toFixed(1)} km`;
+}

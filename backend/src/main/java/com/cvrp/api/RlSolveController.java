@@ -9,6 +9,8 @@ import com.cvrp.model.SolveResult;
 import com.cvrp.rl.QLearningCvrp;
 import com.cvrp.rl.QParams;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,7 @@ import java.util.List;
 public class RlSolveController {
 
     private final QLearningCvrp solver;
+    private static final Logger LOGGER = LoggerFactory.getLogger(RlSolveController.class);
 
     public RlSolveController(QLearningCvrp solver) {
         this.solver = solver;
@@ -34,8 +37,22 @@ public class RlSolveController {
     public ResponseEntity<RlSolveResponse> solve(@Valid @RequestBody RlSolveRequest request) {
         Instance instance = sanitizeInstance(request.instance());
         QParams params = request.resolvedParams();
+        int customerCount = instance.customers().size();
+        int vehicleCount = instance.vehicles().count();
+        LOGGER.info(
+                "Received RL solve request — customers={}, vehicles={}, seed={}, episodes={}",
+                customerCount,
+                vehicleCount,
+                params.seed(),
+                params.episodes());
         validateVehicles(instance);
         SolveResult result = solver.solve(instance, params);
+        LOGGER.info(
+                "RL solve completed — feasible={}, distance={}, runtime={}ms, vehiclesUsed={}",
+                result.feasible(),
+                formatDistance(result.distance()),
+                result.runtimeMillis(),
+                result.vehiclesUsed());
         RlSolveResponse response = new RlSolveResponse(
                 result.distance(),
                 result.feasible(),
@@ -45,6 +62,13 @@ public class RlSolveController {
                 result.log(),
                 result.runtimeMillis());
         return ResponseEntity.ok(response);
+    }
+
+    private String formatDistance(double distance) {
+        if (Double.isFinite(distance)) {
+            return String.format("%.2f", distance);
+        }
+        return "NaN";
     }
 
     private Instance sanitizeInstance(Instance instance) {

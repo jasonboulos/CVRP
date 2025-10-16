@@ -8,6 +8,8 @@ import com.cvrp.model.VehiclesConfig;
 import com.cvrp.util.Distance;
 import com.cvrp.util.SeededRandom;
 import com.cvrp.util.Stopwatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.Map;
 @Service
 public class QLearningCvrp {
     private static final int RETURN_TO_DEPOT = -1;
+    private static final Logger LOGGER = LoggerFactory.getLogger(QLearningCvrp.class);
 
     public SolveResult solve(Instance instance, QParams params) {
         double[][] distanceMatrix = Distance.buildMatrix(instance);
@@ -71,6 +74,13 @@ public class QLearningCvrp {
         log.add("Runtime: " + runtime + " ms");
 
         int capacityViolations = computeCapacityViolations(chosenRoutes, instance.vehicles());
+        LOGGER.info(
+                "QL solve finished — feasible={}, distance={}, runtime={}ms, vehiclesUsed={}, instance={}",
+                feasible,
+                formatDistance(distance),
+                runtime,
+                vehiclesUsed,
+                instance.id());
         return new SolveResult(distance, feasible, vehiclesUsed, chosenRoutes, List.copyOf(log), runtime, capacityViolations);
     }
 
@@ -292,5 +302,12 @@ public class QLearningCvrp {
     }
 
     private record EpisodeResult(double totalDistance, boolean feasible, List<RoutePlan> routes, int vehiclesUsed) {
+    }
+
+    private String formatDistance(double distance) {
+        if (Double.isFinite(distance)) {
+            return String.format("%.2f", distance);
+        }
+        return "NaN";
     }
 }
