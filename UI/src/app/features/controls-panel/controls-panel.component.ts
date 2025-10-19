@@ -19,7 +19,7 @@ import {
   SolverRunConfig,
   VehiclesConfig,
 } from '../../core/models';
-import { DatasetsStoreService, StoredDataset } from './datasets-store.service';
+import { DatasetsStoreService, StoredDataset } from '../../core/services/datasets-store.service';
 
 @Component({
   selector: 'app-controls-panel',

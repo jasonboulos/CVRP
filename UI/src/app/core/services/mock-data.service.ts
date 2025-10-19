@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Customer, DatasetDefinition, Depot, ProblemInstance } from '../models';
+import { DatasetsStoreService } from './datasets-store.service';
 import { createSeededRng, SeededRng } from '../utils/random';
 
 interface PresetData {
@@ -10,6 +11,8 @@ interface PresetData {
 
 @Injectable({ providedIn: 'root' })
 export class MockDataService {
+  constructor(private readonly datasetsStore: DatasetsStoreService) {}
+
   private readonly datasetDefinitions: DatasetDefinition[] = [
     {
       id: 'city-grid',
@@ -83,10 +86,36 @@ export class MockDataService {
   };
 
   getDatasets(): DatasetDefinition[] {
-    return this.datasetDefinitions;
+    const imported = this.datasetsStore.getImportedDatasets().map((dataset) => dataset.definition);
+    const combined = [...this.datasetDefinitions];
+    imported.forEach((definition) => {
+      const index = combined.findIndex((item) => item.id === definition.id);
+      if (index >= 0) {
+        combined[index] = definition;
+      } else {
+        combined.push(definition);
+      }
+    });
+    return combined;
   }
 
   createInstance(datasetId: string, seed: string): ProblemInstance {
+    if (datasetId === 'random') {
+      const rng = createSeededRng(`${datasetId}-${seed}`);
+      const count = 10 + rng.nextInt(21);
+      return {
+        id: `${datasetId}-${seed}-${count}`,
+        name: `Random ${count} customers`,
+        depot: { id: 0, x: 50, y: 50 },
+        customers: this.generateRandomCustomers(rng, count),
+      };
+    }
+
+    const importedInstance = this.datasetsStore.createInstance(datasetId);
+    if (importedInstance) {
+      return importedInstance;
+    }
+
     if (datasetId !== 'random') {
       const preset = this.presetData[datasetId];
       if (!preset) {
@@ -99,15 +128,7 @@ export class MockDataService {
         customers: preset.customers.map((customer) => ({ ...customer })),
       };
     }
-
-    const rng = createSeededRng(`${datasetId}-${seed}`);
-    const count = 10 + rng.nextInt(21);
-    return {
-      id: `${datasetId}-${seed}-${count}`,
-      name: `Random ${count} customers`,
-      depot: { id: 0, x: 50, y: 50 },
-      customers: this.generateRandomCustomers(rng, count),
-    };
+    throw new Error(`Unknown dataset id: ${datasetId}`);
   }
 
   private generateRandomCustomers(rng: SeededRng, count: number): Customer[] {

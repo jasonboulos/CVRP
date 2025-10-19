@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Customer, DatasetDefinition, Depot } from '../../core/models';
+import { Customer, DatasetDefinition, Depot, ProblemInstance } from '../models';
 
 export interface StoredDataset {
   definition: DatasetDefinition;
@@ -46,6 +46,24 @@ export class DatasetsStoreService {
     return this.getImportedDatasets().find((item) => item.definition.id === id);
   }
 
+  createInstance(id: string): ProblemInstance | null {
+    const dataset = this.getDataset(id);
+    if (!dataset) {
+      return null;
+    }
+    return {
+      id: dataset.definition.id,
+      name: dataset.definition.name,
+      depot: { ...dataset.depot },
+      customers: dataset.customers.map((customer, index) => ({
+        id: Math.max(1, Math.round(Number.isFinite(customer.id) ? customer.id : index + 1)),
+        x: customer.x,
+        y: customer.y,
+        demand: customer.demand,
+      })),
+    };
+  }
+
   private canUseStorage(): boolean {
     return typeof window !== 'undefined' && !!window.localStorage;
   }
@@ -64,9 +82,8 @@ export class DatasetsStoreService {
     const id = this.extractString((definition as DatasetDefinition).id);
     const name = this.extractString((definition as DatasetDefinition).name);
     const description = this.extractString((definition as DatasetDefinition).description);
-    const size = Number((definition as DatasetDefinition).size);
     const kind = (definition as DatasetDefinition).kind;
-    if (!id || !name || !description || !Number.isFinite(size) || (kind !== 'preset' && kind !== 'random')) {
+    if (!id || !name || !description || (kind !== 'preset' && kind !== 'random')) {
       return null;
     }
     if (!depot || typeof depot !== 'object') {
@@ -104,7 +121,7 @@ export class DatasetsStoreService {
         id,
         name,
         description,
-        size,
+        size: normalizedCustomers.length,
         kind,
       },
       depot: {
