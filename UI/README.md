@@ -1,27 +1,72 @@
-# UI
+# CVRP Frontend Dashboard
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 15.2.0.
+A standalone Angular 15 dashboard for exploring Capacitated Vehicle Routing Problem (CVRP) scenarios. The UI renders seeded mock data with an SVG-based map, responsive controls, and analytics panels so it is ready to connect to a backend solver later on.
 
-## Development server
+![Conceptual dashboard layout](docs/dashboard-preview.svg)
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+## Features
 
-## Code scaffolding
+- **Controls sidebar** with dataset selection, vehicle configuration sliders, algorithm parameters, random seed input, and run/reset/export actions.
+- **SVG route map** that draws depot, customers, and per-vehicle polylines with hover highlighting that syncs with the routes table.
+- **Metrics panel** summarising distance, vehicle usage, violations, runtime, and gap.
+- **Analysis tabs** for route details, convergence mock chart, and textual solver logs.
+- **Seeded mock services** that generate deterministic datasets, simulate solver output, and compute aggregate metrics without any backend calls.
+- **Export helpers** to download the solution as JSON or rasterise the SVG map as a PNG.
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+## Getting started
 
-## Build
+```bash
+npm install
+npm start
+```
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+> ℹ️ If installing dependencies fails in restricted environments (e.g. `@angular/material` returning HTTP 403), configure npm to use a registry with access and re-run `npm install`.
 
-## Running unit tests
+Then open <http://localhost:4200>. Click **Run** to generate mock routes using the current configuration. Use the tabs beneath the metrics to inspect routes, compare convergence trends, or read the run log. Export buttons provide both JSON and PNG snapshots.
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
+## Tech stack
 
-## Running end-to-end tests
+- Angular 15 with standalone components and strict TypeScript
+- Angular Material UI components styled with Tailwind CSS utility classes
+- Deterministic mock data/simulation services (no backend)
+- ESLint + Prettier ready configuration (via Angular CLI defaults)
 
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
+## Project structure
 
-## Further help
+```
+src/app/
+  core/
+    models/             // Typed interfaces for depot, customer, routes, metrics
+    services/           // MockDataService, SolverAdapterService, MetricsService, ExportService
+    utils/              // Seeded RNG helpers and distance utilities
+  features/
+    controls-panel/     // Left-hand configuration form
+    dashboard/          // Main layout container (sidenav + content)
+    map-view/           // SVG map rendering
+    metrics-cards/      // Summary cards component
+    routes-tab/         // Vehicle cards + routes table
+    compare-tab/        // Mock convergence/runtime charts
+    run-log-tab/        // Textual log display
+```
 
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+## Mock data behaviour
+
+- Random datasets use a seeded RNG to keep results deterministic.
+- Vehicle assignment respects capacity when possible and tracks violations otherwise.
+- Convergence/runtime series are procedurally generated to emulate solver progress.
+- A one-second artificial delay mimics asynchronous solver calls.
+
+## Exporting
+
+- **JSON** – full payload with configuration, instance, and solution metrics.
+- **PNG** – rasterises the SVG map (1000×600 canvas) with a white background for sharing.
+
+## Roadmap for backend integration
+
+- Replace `SolverAdapterService` with API calls to the forthcoming Python solver.
+- Stream real solver logs via WebSocket or polling.
+- Swap the synthetic convergence/runtime data with real metrics.
+
+---
+
+Happy routing!

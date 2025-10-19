@@ -1,0 +1,155 @@
+<div class="controls-panel h-full flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow">
+  <header class="flex flex-col gap-1">
+    <h2 class="text-lg font-semibold text-slate-800">Scenario Controls</h2>
+    <p class="text-xs uppercase tracking-wide text-slate-500">Configure the CVRP run</p>
+  </header>
+
+  <div class="flex-1 overflow-auto pr-1">
+    <form [formGroup]="form" class="flex flex-col gap-6">
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Dataset</span>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400" for="dataset-select">
+          Select dataset
+        </label>
+        <select
+          id="dataset-select"
+          formControlName="datasetId"
+          class="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+        >
+          <option *ngFor="let dataset of datasets" [value]="dataset.id">{{ dataset.name }}</option>
+        </select>
+        <p class="text-xs text-slate-500" *ngIf="datasetDescription">
+          {{ datasetDescription }}
+        </p>
+      </section>
+
+      <section formGroupName="vehicles" class="flex flex-col gap-4">
+        <span class="text-sm font-medium text-slate-500">Vehicles</span>
+        <div class="grid grid-cols-1 gap-4">
+          <div>
+            <div class="flex justify-between text-xs font-medium text-slate-500">
+              <span>Fleet size</span>
+              <span>{{ vehicleCount }}</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="8"
+              step="1"
+              formControlName="count"
+              class="slider-thumb"
+            />
+          </div>
+          <div>
+            <div class="flex items-center justify-between text-xs font-medium text-slate-500">
+              <span>Vehicle capacities</span>
+              <span>{{ vehicleCapacityControls.length }} total</span>
+            </div>
+            <div class="mt-2 grid gap-3 sm:grid-cols-2">
+              <div
+                *ngFor="let control of vehicleCapacityControls; index as idx"
+                class="rounded border border-slate-200 bg-slate-50 p-3"
+              >
+                <label class="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <span>Vehicle {{ idx + 1 }}</span>
+                  <span>{{ control.value }}</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="200"
+                  step="1"
+                  [formControl]="control"
+                  class="mt-2 w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Algorithm</span>
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400" for="algorithm-select">
+          Select algorithm
+        </label>
+        <select
+          id="algorithm-select"
+          formControlName="algorithm"
+          class="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+        >
+          <option *ngFor="let algorithm of algorithms" [value]="algorithm.id">{{ algorithm.name }}</option>
+        </select>
+        <p class="text-xs text-slate-500" *ngIf="selectedAlgorithm as algorithm">
+          {{ algorithm.description }}
+        </p>
+        <div class="flex flex-col gap-4" *ngIf="selectedAlgorithm as algorithm">
+          <div
+            class="flex flex-col gap-2"
+            *ngFor="let parameter of algorithm.parameters; index as idx"
+          >
+            <div class="flex justify-between text-xs font-medium text-slate-500">
+              <span>{{ parameter.label }}</span>
+              <span>{{ getParameterValue(idx) }}</span>
+            </div>
+            <input
+              type="range"
+              [min]="parameter.min"
+              [max]="parameter.max"
+              [step]="parameter.step"
+              [title]="parameter.tooltip || ''"
+              [formControl]="parameterControls[idx]"
+              class="slider-thumb"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-3">
+        <span class="text-sm font-medium text-slate-500">Random seed</span>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            formControlName="seed"
+            class="flex-1 rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            class="rounded border border-slate-200 px-2 py-1 text-sm text-slate-600 transition hover:bg-slate-100"
+            aria-label="Randomize seed"
+            (click)="randomizeSeed()"
+          >
+            ↻
+          </button>
+        </div>
+      </section>
+    </form>
+  </div>
+
+  <div class="flex flex-col gap-2 pt-0">
+    <div class="flex gap-2">
+      <button type="button" class="btn-primary flex-1" (click)="onRun()" [disabled]="solving">
+        <span *ngIf="solving" class="flex items-center justify-center gap-2">
+          <span class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-slate-200 border-t-slate-600"></span>
+          Running…
+        </span>
+        <span *ngIf="!solving">▶ Run</span>
+      </button>
+      <button type="button" class="btn-secondary" (click)="handleReset()">
+        ⟳
+      </button>
+    </div>
+    <div class="relative">
+      <button type="button" class="btn-secondary w-full" (click)="toggleExportMenu()">
+        ⬇ Export
+      </button>
+      <div
+        *ngIf="exportMenuOpen"
+        class="absolute left-0 top-full z-10 mt-1 w-full rounded border border-slate-200 bg-white shadow-lg"
+      >
+        <button type="button" class="menu-item" (click)="handleExport('json')">JSON solution</button>
+        <button type="button" class="menu-item" (click)="handleExport('png')">Map snapshot</button>
+      </div>
+    </div>
+  </div>
+</div>

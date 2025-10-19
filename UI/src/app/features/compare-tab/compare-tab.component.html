@@ -1,0 +1,49 @@
+<div class="grid gap-4 md:grid-cols-2">
+  <div class="panel">
+    <div class="panel__header">
+      <div>
+        <div class="panel__title">Convergence trend</div>
+        <div class="panel__subtitle">Mocked best distance improvement</div>
+      </div>
+    </div>
+    <div class="flex items-center justify-center">
+      <svg [attr.width]="width" [attr.height]="height" class="max-w-full">
+        <path
+          *ngIf="linePath; else convergencePlaceholder"
+          [attr.d]="linePath"
+          fill="none"
+          stroke="#6366f1"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        ></path>
+      </svg>
+      <ng-template #convergencePlaceholder>
+        <div class="text-xs text-slate-400">Run a scenario to view convergence data.</div>
+      </ng-template>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel__header">
+      <div>
+        <div class="panel__title">Runtime breakdown</div>
+        <div class="panel__subtitle">Stages of the mock solver</div>
+      </div>
+    </div>
+    <div *ngIf="bars.length > 0; else runtimePlaceholder" class="flex flex-col gap-3">
+      <div *ngFor="let bar of bars">
+        <div class="flex justify-between text-xs text-slate-500">
+          <span>{{ bar.label }}</span>
+          <span>{{ bar.value }} ms</span>
+        </div>
+        <div class="h-2 rounded-full bg-slate-200">
+          <div class="h-2 rounded-full bg-emerald-400 transition-all" [style.width.%]="bar.width"></div>
+        </div>
+      </div>
+    </div>
+    <ng-template #runtimePlaceholder>
+      <div class="text-xs text-slate-400">Runtime metrics appear after running the solver.</div>
+    </ng-template>
+  </div>
+</div>

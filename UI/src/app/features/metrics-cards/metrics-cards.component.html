@@ -1,0 +1,20 @@
+<div class="metrics-grid" role="list">
+  <section
+    *ngFor="let tile of tiles"
+    class="metric-card"
+    role="listitem"
+    [attr.aria-label]="tile.label + ' ' + tile.value + (tile.unit ? ' ' + tile.unit : '')"
+  >
+    <header class="metric-header">
+      <span class="metric-icon" [ngClass]="tile.accent" aria-hidden="true">{{ tile.icon }}</span>
+      <span class="metric-title" [title]="tile.label">{{ tile.label }}</span>
+    </header>
+    <div class="metric-body">
+      <div class="metric-value-row">
+        <span class="metric-value" [title]="tile.value + (tile.unit ? ' ' + tile.unit : '')">{{ tile.value }}</span>
+        <span *ngIf="tile.unit" class="metric-unit" [title]="tile.unit">{{ tile.unit }}</span>
+      </div>
+      <div *ngIf="tile.helper" class="metric-helper" [title]="tile.helper">{{ tile.helper }}</div>
+    </div>
+  </section>
+</div>

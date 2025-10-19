@@ -1,0 +1,9 @@
+<div class="rounded-xl border border-slate-200 bg-slate-900/5 p-4">
+  <div class="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
+    <span aria-hidden="true">🕒</span>
+    Solver log
+  </div>
+  <pre class="max-h-64 overflow-auto whitespace-pre-wrap text-xs text-slate-600">
+{{ (log && log.length > 0 ? log.join('\n') : 'Run the solver to view logs.') }}
+  </pre>
+</div>

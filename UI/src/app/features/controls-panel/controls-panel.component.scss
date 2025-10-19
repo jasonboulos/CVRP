@@ -1,0 +1,21 @@
+.controls-panel {
+  max-height: 100%;
+  scrollbar-width: thin;
+
+  .slider-thumb {
+    width: 100%;
+    accent-color: #1d4ed8;
+  }
+
+  .btn-primary {
+    @apply rounded bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow transition hover:bg-blue-700;
+  }
+
+  .btn-secondary {
+    @apply rounded border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100;
+  }
+
+  .menu-item {
+    @apply w-full px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100;
+  }
+}

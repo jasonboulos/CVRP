@@ -1,0 +1,52 @@
+<div class="flex flex-col gap-6">
+  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div
+      *ngFor="let route of routes"
+      class="route-card cursor-pointer border border-transparent transition-all"
+      [class.route-card--dimmed]="!isActive(route)"
+      (mouseenter)="handleHover(route.vehicle)"
+      (mouseleave)="handleHover(null)"
+    >
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs uppercase tracking-wide text-slate-500">Vehicle {{ route.vehicle }}</div>
+          <div class="text-lg font-semibold text-slate-800">{{ route.distance | number: '1.2-2' }} km</div>
+        </div>
+        <div class="h-10 w-10 rounded-full" [style.background]="route.color || '#3b82f6'"></div>
+      </div>
+      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span class="badge">Load {{ route.load }}</span>
+        <span class="badge">Stops {{ route.nodes.length - 2 }}</span>
+      </div>
+      <div class="mt-3 text-xs text-slate-500">
+        Customers: {{ getCustomersLabel(route) || '—' }}
+      </div>
+    </div>
+  </div>
+
+  <div class="overflow-auto">
+    <table class="routes-table w-full min-w-[480px]">
+      <thead>
+        <tr>
+          <th scope="col">Vehicle</th>
+          <th scope="col">Distance (km)</th>
+          <th scope="col">Load</th>
+          <th scope="col">Customers</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          *ngFor="let route of routes"
+          (mouseenter)="handleHover(route.vehicle)"
+          (mouseleave)="handleHover(null)"
+          [class.active]="isActive(route)"
+        >
+          <td>{{ route.vehicle }}</td>
+          <td>{{ route.distance | number: '1.2-2' }}</td>
+          <td>{{ route.load }}</td>
+          <td>{{ getCustomersLabel(route) || '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
