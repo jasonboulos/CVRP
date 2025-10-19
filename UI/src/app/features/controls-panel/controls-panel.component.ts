@@ -44,6 +44,8 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     vehicles: FormGroup<{
       count: FormControl<number>;
       capacities: FormArray<FormControl<number>>;
+      sameCapacity: FormControl<boolean>;
+      sameCapacityValue: FormControl<number>;
     }>;
     algorithm: FormControl<AlgorithmId>;
     seed: FormControl<string>;
@@ -52,6 +54,8 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     vehicles: this.fb.group({
       count: this.fb.control(3),
       capacities: this.fb.array<FormControl<number>>([]),
+      sameCapacity: this.fb.control(true),
+      sameCapacityValue: this.fb.control(60),
     }),
     algorithm: this.fb.control<AlgorithmId>('tabu'),
     seed: this.fb.control('12345'),
@@ -71,15 +75,24 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   get vehicleCount(): number {
-    return this.form.controls.vehicles.controls.capacities.length;
+    return this.capacitiesArray.length;
   }
 
   get vehicleCapacityControls(): FormControl<number>[] {
-    return this.form.controls.vehicles.controls.capacities.controls;
+    return this.capacitiesArray.controls;
   }
 
   get capacitiesArray(): FormArray<FormControl<number>> {
-    return this.form.controls.vehicles.controls.capacities;
+    return this.vehiclesGroup.controls.capacities;
+  }
+
+  get vehiclesGroup(): FormGroup<{
+    count: FormControl<number>;
+    capacities: FormArray<FormControl<number>>;
+    sameCapacity: FormControl<boolean>;
+    sameCapacityValue: FormControl<number>;
+  }> {
+    return this.form.controls.vehicles;
   }
 
   ngOnInit(): void {
@@ -95,12 +108,32 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
         .subscribe(() => this.emitConfigChange()),
     );
 
-    const vehiclesGroup = this.form.controls.vehicles.controls;
+    const vehiclesGroup = this.vehiclesGroup.controls;
     this.ensureCapacityControls(vehiclesGroup.count.value, undefined, false);
     this.subscription.add(
       vehiclesGroup.count.valueChanges.pipe(distinctUntilChanged()).subscribe((count) => {
         this.ensureCapacityControls(count, undefined, false);
       }),
+    );
+    this.subscription.add(
+      vehiclesGroup.sameCapacity.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe((sameCapacity) => {
+          if (sameCapacity) {
+            this.applySameCapacityToAll(vehiclesGroup.sameCapacityValue.value, false);
+          }
+          this.emitConfigChange();
+        }),
+    );
+    this.subscription.add(
+      vehiclesGroup.sameCapacityValue.valueChanges
+        .pipe(distinctUntilChanged())
+        .subscribe((value) => {
+          if (vehiclesGroup.sameCapacity.value) {
+            this.applySameCapacityToAll(value, false);
+            this.emitConfigChange();
+          }
+        }),
     );
     this.subscription.add(
       this.capacitiesArray.valueChanges
@@ -204,7 +237,19 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
       },
       { emitEvent: false },
     );
-    this.ensureCapacityControls(config.vehicles.vehicles.length, vehicleCapacities, false);
+    const vehiclesGroup = this.vehiclesGroup.controls;
+    const allEqual = vehicleCapacities.every((capacity) => capacity === vehicleCapacities[0]);
+    const firstCapacity = vehicleCapacities[0] ?? vehiclesGroup.sameCapacityValue.value;
+    const sharedValue = Math.max(1, Math.round(firstCapacity || 0));
+    vehiclesGroup.sameCapacityValue.setValue(sharedValue, { emitEvent: false });
+    if (allEqual) {
+      vehiclesGroup.sameCapacity.setValue(true, { emitEvent: false });
+      this.ensureCapacityControls(config.vehicles.vehicles.length, undefined, false);
+      this.applySameCapacityToAll(sharedValue, false);
+    } else {
+      vehiclesGroup.sameCapacity.setValue(false, { emitEvent: false });
+      this.ensureCapacityControls(config.vehicles.vehicles.length, vehicleCapacities, false);
+    }
   }
 
   private buildConfig(): SolverRunConfig {
@@ -246,11 +291,16 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
 
   private ensureCapacityControls(count: number, existing?: number[], emit = true): void {
     const array = this.capacitiesArray;
+    const vehiclesGroup = this.vehiclesGroup.controls;
+    const sameCapacity = vehiclesGroup.sameCapacity.value;
+    const sharedValue = Math.max(1, Math.round(vehiclesGroup.sameCapacityValue.value || 0));
     const safeCount = Math.max(1, Math.min(8, Math.round(count) || 0));
     let mutated = false;
     while (array.length < safeCount) {
-      const previousValue = array.length > 0 ? array.at(array.length - 1).value : 60;
-      const nextValue = existing?.[array.length] ?? previousValue;
+      const previousValue = array.length > 0 ? array.at(array.length - 1).value : sameCapacity ? sharedValue : 60;
+      const nextValue = sameCapacity
+        ? sharedValue
+        : Math.max(1, Math.round(existing?.[array.length] ?? previousValue));
       array.push(this.fb.control(Math.max(1, Math.round(nextValue))));
       mutated = true;
     }
@@ -258,7 +308,9 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
       array.removeAt(array.length - 1);
       mutated = true;
     }
-    if (existing) {
+    if (sameCapacity) {
+      this.applySameCapacityToAll(sharedValue, false);
+    } else if (existing) {
       existing.slice(0, array.length).forEach((value, index) => {
         array.at(index).setValue(Math.max(1, Math.round(value)), { emitEvent: false });
       });
@@ -269,6 +321,22 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
       countControl.setValue(safeCount, { emitEvent: false });
     }
     if (emit || (!emit && !mutated && countChanged)) {
+      this.emitConfigChange();
+    }
+  }
+
+  private applySameCapacityToAll(value: number, emit = true): void {
+    const vehiclesGroup = this.vehiclesGroup.controls;
+    const safeValue = Math.max(1, Math.round(value || 0));
+    if (vehiclesGroup.sameCapacityValue.value !== safeValue) {
+      vehiclesGroup.sameCapacityValue.setValue(safeValue, { emitEvent: false });
+    }
+    this.capacitiesArray.controls.forEach((control) => {
+      if (control.value !== safeValue) {
+        control.setValue(safeValue, { emitEvent: false });
+      }
+    });
+    if (emit) {
       this.emitConfigChange();
     }
   }
