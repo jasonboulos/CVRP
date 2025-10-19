@@ -1,5 +1,6 @@
 import {
   Component,
+  ElementRef,
   EventEmitter,
   Input,
   OnChanges,
@@ -7,6 +8,7 @@ import {
   OnInit,
   Output,
   SimpleChanges,
+  ViewChild,
 } from '@angular/core';
 import { FormArray, FormControl, FormGroup, NonNullableFormBuilder } from '@angular/forms';
 import { Subscription, distinctUntilChanged } from 'rxjs';
@@ -17,6 +19,7 @@ import {
   SolverRunConfig,
   VehiclesConfig,
 } from '../../core/models';
+import { DatasetsStoreService, StoredDataset } from './datasets-store.service';
 
 @Component({
   selector: 'app-controls-panel',
@@ -24,7 +27,12 @@ import {
   styleUrls: ['./controls-panel.component.scss'],
 })
 export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
-  constructor(private readonly fb: NonNullableFormBuilder) {}
+  constructor(
+    private readonly fb: NonNullableFormBuilder,
+    private readonly datasetsStore: DatasetsStoreService,
+  ) {}
+
+  @ViewChild('datasetFileInput') datasetFileInput?: ElementRef<HTMLInputElement>;
 
   @Input() datasets: DatasetDefinition[] = [];
   @Input() algorithms: AlgorithmSummary[] = [];
@@ -64,13 +72,14 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   parameterControls: FormControl<number>[] = [];
   selectedAlgorithm: AlgorithmSummary | null = null;
   exportMenuOpen = false;
+  availableDatasets: DatasetDefinition[] = [];
 
   get datasetDescription(): string | null {
     const datasetId = this.form.controls.datasetId.value;
     if (!datasetId) {
       return null;
     }
-    const dataset = this.datasets.find((datasetItem) => datasetItem.id === datasetId);
+    const dataset = this.availableDatasets.find((datasetItem) => datasetItem.id === datasetId);
     return dataset ? dataset.description : null;
   }
 
@@ -96,6 +105,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.refreshDatasets();
     this.subscription.add(
       this.form.controls.datasetId.valueChanges
         .pipe(distinctUntilChanged())
@@ -157,6 +167,9 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes['datasets']) {
+      this.refreshDatasets();
+    }
     if (changes['config'] && this.config) {
       this.patchForm(this.config);
       this.setParameterControls(this.config.algorithm, this.config);
@@ -182,6 +195,38 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   handleExport(format: 'json' | 'png'): void {
     this.exportMenuOpen = false;
     this.export.emit(format);
+  }
+
+  openDatasetImport(): void {
+    const input = this.datasetFileInput?.nativeElement;
+    if (!input) {
+      return;
+    }
+    input.value = '';
+    input.click();
+  }
+
+  async onDatasetFileChange(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement | null;
+    if (!input || !input.files || input.files.length === 0) {
+      return;
+    }
+    const file = input.files[0];
+    try {
+      const text = await file.text();
+      const raw = JSON.parse(text);
+      const dataset = this.createImportedDataset(raw);
+      if (!dataset) {
+        throw new Error('Invalid dataset');
+      }
+      this.datasetsStore.saveDataset(dataset);
+      this.refreshDatasets();
+      this.form.controls.datasetId.setValue(dataset.definition.id);
+    } catch {
+      alert('Invalid dataset file');
+    } finally {
+      input.value = '';
+    }
   }
 
   toggleExportMenu(): void {
@@ -227,6 +272,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }
 
   private patchForm(config: SolverRunConfig): void {
+    this.refreshDatasets();
     const vehicleCapacities = config.vehicles.vehicles.map((vehicle) => vehicle.capacity);
     this.form.patchValue(
       {
@@ -339,5 +385,97 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     if (emit) {
       this.emitConfigChange();
     }
+  }
+
+  private refreshDatasets(): void {
+    const importedDatasets = this.datasetsStore.getImportedDatasets();
+    const combined: DatasetDefinition[] = [...(this.datasets ?? [])];
+    importedDatasets.forEach((dataset) => {
+      const existingIndex = combined.findIndex((item) => item.id === dataset.definition.id);
+      if (existingIndex >= 0) {
+        combined[existingIndex] = dataset.definition;
+      } else {
+        combined.push(dataset.definition);
+      }
+    });
+    this.availableDatasets = combined;
+  }
+
+  private createImportedDataset(raw: unknown): StoredDataset | null {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+    const data = raw as { [key: string]: unknown };
+    const nameValue = typeof data['name'] === 'string' ? data['name'].trim() : '';
+    if (!nameValue) {
+      return null;
+    }
+    const depotRaw = data['depot'];
+    if (!depotRaw || typeof depotRaw !== 'object') {
+      return null;
+    }
+    const depot = depotRaw as { [key: string]: unknown };
+    const depotX = Number(depot['x']);
+    const depotY = Number(depot['y']);
+    if (!Number.isFinite(depotX) || !Number.isFinite(depotY)) {
+      return null;
+    }
+    const customersRaw = data['customers'];
+    if (!Array.isArray(customersRaw) || customersRaw.length === 0) {
+      return null;
+    }
+    const customers: StoredDataset['customers'] = [];
+    for (let index = 0; index < customersRaw.length; index += 1) {
+      const customer = customersRaw[index];
+      if (!customer || typeof customer !== 'object') {
+        return null;
+      }
+      const customerObject = customer as { [key: string]: unknown };
+      const x = Number(customerObject['x']);
+      const y = Number(customerObject['y']);
+      const demand = Number(customerObject['demand']);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(demand)) {
+        return null;
+      }
+      customers.push({
+        id: index + 1,
+        x,
+        y,
+        demand,
+      });
+    }
+    const descriptionSource = typeof data['description'] === 'string' ? data['description'].trim() : '';
+    const definition: DatasetDefinition = {
+      id: this.generateDatasetId(),
+      name: nameValue,
+      description: descriptionSource || `Imported dataset (${customers.length} customers).`,
+      size: customers.length,
+      kind: 'preset',
+    };
+    return {
+      definition,
+      depot: {
+        id: 0,
+        x: depotX,
+        y: depotY,
+      },
+      customers,
+    };
+  }
+
+  private generateDatasetId(): string {
+    const existingImported = this.datasetsStore
+      .getImportedDatasets()
+      .map((dataset) => dataset.definition.id);
+    const existingIds = new Set<string>([
+      ...this.datasets.map((dataset) => dataset.id),
+      ...this.availableDatasets.map((dataset) => dataset.id),
+      ...existingImported,
+    ]);
+    let id: string;
+    do {
+      id = `custom-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    } while (existingIds.has(id));
+    return id;
   }
 }

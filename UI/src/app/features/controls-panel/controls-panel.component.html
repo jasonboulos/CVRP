@@ -11,13 +11,29 @@
         <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400" for="dataset-select">
           Select dataset
         </label>
-        <select
-          id="dataset-select"
-          formControlName="datasetId"
-          class="w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
-        >
-          <option *ngFor="let dataset of datasets" [value]="dataset.id">{{ dataset.name }}</option>
-        </select>
+        <div class="flex items-center gap-2">
+          <select
+            id="dataset-select"
+            formControlName="datasetId"
+            class="flex-1 rounded border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-slate-500 focus:outline-none"
+          >
+            <option *ngFor="let dataset of availableDatasets" [value]="dataset.id">{{ dataset.name }}</option>
+          </select>
+          <button
+            type="button"
+            class="btn-secondary whitespace-nowrap"
+            (click)="openDatasetImport()"
+          >
+            Import JSON
+          </button>
+        </div>
+        <input
+          #datasetFileInput
+          type="file"
+          class="hidden"
+          accept=".json,application/json"
+          (change)="onDatasetFileChange($event)"
+        />
         <p class="text-xs text-slate-500" *ngIf="datasetDescription">
           {{ datasetDescription }}
         </p>
