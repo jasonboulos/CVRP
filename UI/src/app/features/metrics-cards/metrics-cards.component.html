@@ -3,7 +3,9 @@
     *ngFor="let tile of tiles"
     class="metric-card"
     role="listitem"
+    [ngClass]="tile.cardClass"
     [attr.aria-label]="tile.label + ' ' + tile.value + (tile.unit ? ' ' + tile.unit : '')"
+    [attr.title]="tile.title || null"
   >
     <header class="metric-header">
       <span class="metric-icon" [ngClass]="tile.accent" aria-hidden="true">{{ tile.icon }}</span>
@@ -11,7 +13,13 @@
     </header>
     <div class="metric-body">
       <div class="metric-value-row">
-        <span class="metric-value" [title]="tile.value + (tile.unit ? ' ' + tile.unit : '')">{{ tile.value }}</span>
+        <span
+          class="metric-value"
+          [ngClass]="tile.valueClass"
+          [title]="tile.value + (tile.unit ? ' ' + tile.unit : '')"
+        >
+          {{ tile.value }}
+        </span>
         <span *ngIf="tile.unit" class="metric-unit" [title]="tile.unit">{{ tile.unit }}</span>
       </div>
       <div *ngIf="tile.helper" class="metric-helper" [title]="tile.helper">{{ tile.helper }}</div>

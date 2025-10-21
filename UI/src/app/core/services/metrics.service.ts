@@ -13,7 +13,7 @@ export class MetricsService {
       vehiclesUsed: solution.vehiclesUsed,
       capacityViolations: solution.violations.capacity,
       runtimeMs: solution.runtimeMs,
-      optimalityGap: solution.gap ?? 0,
+      feasible: typeof solution.feasible === 'boolean' ? solution.feasible : null,
     };
   }
 
