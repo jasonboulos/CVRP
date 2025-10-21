@@ -79,7 +79,7 @@ export class MetricsCardsComponent {
         value: `${this.metrics.vehiclesUsed}`,
         unit: 'vehicles',
         accent: 'text-emerald-500',
-        helper: 'out of fleet',
+        helper: '',
       },
       {
         label: 'Capacity violations',
