@@ -1,10 +1,10 @@
 package com.cvrp.model;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
-import java.util.List;
 
 public record Instance(
         @NotBlank String id,
@@ -13,9 +13,9 @@ public record Instance(
         @Valid @NotNull VehiclesConfig vehicles) {
 
     public Instance {
-        if (customers == null || customers.isEmpty()) {
+        if ( customers.isEmpty()) {
             throw new IllegalArgumentException("Instance must define at least one customer");
         }
-        this.customers = List.copyOf(customers);
+        customers = List.copyOf(customers);
     }
 }

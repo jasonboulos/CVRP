@@ -84,8 +84,8 @@ export class SolverAdapterService {
       name: 'Reinforcement Learning',
       description: 'Tabular Q-learning baseline with seeded replay.',
       parameters: [
-        { key: 'episodes', label: 'Episodes', min: 50, max: 500, step: 10, defaultValue: 200 },
-        { key: 'gamma', label: 'Gamma', min: 0.5, max: 0.99, step: 0.01, defaultValue: 0.9 },
+        { key: 'episodes', label: 'Episodes', min: 500, max: 5000, step: 10, defaultValue: 1000 },
+        { key: 'gamma', label: 'Gamma', min: 0.1, max: 0.99, step: 0.01, defaultValue: 0.9 },
       ],
     },
   };
@@ -106,8 +106,11 @@ export class SolverAdapterService {
     seed: string,
   ): Promise<SolveResponse> {
     if (algorithm === 'rl') {
+      console.log('Solving with backend RL service...');
       return this.solveWithBackend(instance, vehicles, parameters, seed);
     }
+    console.log('Solving with local mock solver...');
+    console.log(algorithm);
     return this.solveWithMock(instance, vehicles, algorithm, parameters, seed);
   }
 
@@ -194,6 +197,7 @@ export class SolverAdapterService {
 
     const url = `${environment.apiBaseUrl}/api/rl/solve`;
     const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    console.log('RL Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 
     return {

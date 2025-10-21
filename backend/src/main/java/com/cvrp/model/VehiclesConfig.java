@@ -1,9 +1,9 @@
 package com.cvrp.model;
 
+import java.util.List;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
-
-import java.util.List;
 
 public record VehiclesConfig(@NotEmpty List<@Valid Vehicle> vehicles) {
 
@@ -11,7 +11,7 @@ public record VehiclesConfig(@NotEmpty List<@Valid Vehicle> vehicles) {
         if (vehicles == null || vehicles.isEmpty()) {
             throw new IllegalArgumentException("Vehicle list must not be empty");
         }
-        this.vehicles = List.copyOf(vehicles);
+        vehicles = List.copyOf(vehicles);
     }
 
     public int count() {
