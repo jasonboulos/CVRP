@@ -340,7 +340,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     const vehiclesGroup = this.vehiclesGroup.controls;
     const sameCapacity = vehiclesGroup.sameCapacity.value;
     const sharedValue = Math.max(1, Math.round(vehiclesGroup.sameCapacityValue.value || 0));
-    const safeCount = Math.max(1, Math.min(8, Math.round(count) || 0));
+    const safeCount = Math.max(1, Math.min(20, Math.round(count) || 0));
     let mutated = false;
     while (array.length < safeCount) {
       const previousValue = array.length > 0 ? array.at(array.length - 1).value : sameCapacity ? sharedValue : 60;
