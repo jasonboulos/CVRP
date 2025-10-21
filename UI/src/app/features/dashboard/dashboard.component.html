@@ -1,42 +1,46 @@
 <div class="dashboard-container">
-  <aside class="sidebar" [class.open]="sidebarOpen" [class.handset]="isHandset">
-    <app-controls-panel
-      [datasets]="datasets"
-      [algorithms]="algorithms"
-      [config]="config"
-      [solving]="isSolving"
-      (run)="onRun($event)"
-      (reset)="onReset()"
-      (export)="onExport($event)"
-      (configChange)="onConfigChanged($event)"
-    ></app-controls-panel>
-  </aside>
+  <header class="top-bar">
+    <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
+    <span class="title">CVRP Explorer</span>
+    <span class="status">Mock frontend only ⛅</span>
+  </header>
 
-  <div class="dashboard-main">
-    <header class="top-bar">
-      <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
-      <span class="title">CVRP Explorer</span>
-      <span class="status">Mock frontend only ⛅</span>
-    </header>
+  <div *ngIf="toastMessage" class="toast">{{ toastMessage }}</div>
 
-    <div *ngIf="toastMessage" class="toast">{{ toastMessage }}</div>
+  <div class="loading-bar" *ngIf="isSolving">
+    <div class="indicator"></div>
+  </div>
 
-    <div class="loading-bar" *ngIf="isSolving">
-      <div class="indicator"></div>
-    </div>
+  <div class="dashboard-body">
+    <div class="workspace">
+      <aside class="controls-panel" [class.open]="sidebarOpen" [class.handset]="isHandset">
+        <app-controls-panel
+          [datasets]="datasets"
+          [algorithms]="algorithms"
+          [config]="config"
+          [solving]="isSolving"
+          (run)="onRun($event)"
+          (reset)="onReset()"
+          (export)="onExport($event)"
+          (configChange)="onConfigChanged($event)"
+        ></app-controls-panel>
+      </aside>
 
-    <div class="content">
-      <div class="grid gap-6 xl:grid-cols-[2fr,1fr]">
-        <app-map-view
-          class="min-h-[320px]"
-          [depot]="instance?.depot ?? null"
-          [customers]="instance?.customers ?? []"
-          [routes]="routes"
-          [highlightVehicle]="highlightVehicle"
-          [utilization]="utilization"
-        ></app-map-view>
+      <main class="map-panel">
+        <div class="map-panel__content">
+          <app-map-view
+            class="map-panel__map"
+            [depot]="instance?.depot ?? null"
+            [customers]="instance?.customers ?? []"
+            [routes]="routes"
+            [highlightVehicle]="highlightVehicle"
+            [utilization]="utilization"
+          ></app-map-view>
+        </div>
+      </main>
 
-        <div class="flex flex-col gap-4">
+      <aside class="results-panel">
+        <div class="results-panel__content">
           <app-metrics-cards [metrics]="metrics"></app-metrics-cards>
           <div class="tabs">
             <div class="tab-buttons">
@@ -70,7 +74,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </aside>
     </div>
   </div>
 
