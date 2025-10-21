@@ -8,6 +8,9 @@ interface MetricTile {
   unit?: string;
   accent: string;
   helper?: string;
+  cardClass?: string;
+  valueClass?: string;
+  title?: string;
 }
 
 @Component({
@@ -25,9 +28,42 @@ export class MetricsCardsComponent {
         { label: 'Vehicles used', icon: '🚚', value: '--', accent: 'text-slate-400' },
         { label: 'Capacity violations', icon: '⚠️', value: '--', accent: 'text-slate-400' },
         { label: 'Runtime', icon: '⏱️', value: '--', accent: 'text-slate-400' },
-        { label: 'Optimality gap', icon: '📊', value: '--', accent: 'text-slate-400' },
+        { label: 'Feasibility', icon: 'ℹ️', value: '--', accent: 'text-slate-400' },
       ];
     }
+
+    const feasibilityTile: MetricTile = (() => {
+      if (this.metrics?.feasible === true) {
+        return {
+          label: 'Feasibility',
+          icon: '✅',
+          value: 'Feasible ✅',
+          accent: 'text-green-600',
+          valueClass: 'text-green-600',
+          cardClass: 'bg-green-50',
+          title: 'All customers served and constraints respected.',
+        } satisfies MetricTile;
+      }
+
+      if (this.metrics?.feasible === false) {
+        return {
+          label: 'Feasibility',
+          icon: '❌',
+          value: 'Not Feasible ❌',
+          accent: 'text-rose-600',
+          valueClass: 'text-rose-600',
+          cardClass: 'bg-rose-50',
+          title: 'Some customers cannot be served under current constraints.',
+        } satisfies MetricTile;
+      }
+
+      return {
+        label: 'Feasibility',
+        icon: 'ℹ️',
+        value: '--',
+        accent: 'text-slate-400',
+      } satisfies MetricTile;
+    })();
 
     return [
       {
@@ -59,13 +95,7 @@ export class MetricsCardsComponent {
         unit: 's',
         accent: 'text-amber-500',
       },
-      {
-        label: 'Optimality gap',
-        icon: '📊',
-        value: this.metrics.optimalityGap.toFixed(2),
-        unit: '%',
-        accent: 'text-fuchsia-500',
-      },
+      feasibilityTile,
     ];
   }
 }

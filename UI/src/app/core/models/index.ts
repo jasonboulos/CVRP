@@ -98,5 +98,5 @@ export interface DashboardMetrics {
   vehiclesUsed: number;
   capacityViolations: number;
   runtimeMs: number;
-  optimalityGap: number;
+  feasible: boolean | null;
 }
