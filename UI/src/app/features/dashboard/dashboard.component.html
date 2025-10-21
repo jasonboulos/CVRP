@@ -1,83 +1,217 @@
-<div class="dashboard-container">
-
-
-  <div class="dashboard-main">
-    <header class="top-bar">
-      <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
-      <span class="title">CVRP Explorer</span>
-      <span class="status">UTBM ⛅</span>
-    </header>
-
-  <div class="loading-bar" *ngIf="isSolving">
-    <div class="indicator"></div>
-  </div>
-
-  <div class="dashboard-body">
-    <div class="workspace">
-      <aside class="controls-panel" [class.open]="sidebarOpen" [class.handset]="isHandset">
-        <app-controls-panel
-          [datasets]="datasets"
-          [algorithms]="algorithms"
-          [config]="config"
-          [solving]="isSolving"
-          (run)="onRun($event)"
-          (reset)="onReset()"
-          (export)="onExport($event)"
-          (configChange)="onConfigChanged($event)"
-        ></app-controls-panel>
-      </aside>
-
-      <main class="map-panel">
-        <div class="map-panel__content">
-          <app-map-view
-            class="map-panel__map"
-            [depot]="instance?.depot ?? null"
-            [customers]="instance?.customers ?? []"
-            [routes]="routes"
-            [highlightVehicle]="highlightVehicle"
-            [utilization]="utilization"
-          ></app-map-view>
+<div class="flex min-h-screen flex-col bg-slate-100 text-slate-900">
+  <header
+    class="sticky top-0 z-40 border-b border-slate-200 bg-white/90 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/75"
+    role="banner"
+  >
+    <div class="flex items-center justify-between px-4 py-3 sm:px-6">
+      <div class="flex items-center gap-3">
+        <button
+          *ngIf="isHandset"
+          type="button"
+          class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:border-slate-400 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+          (click)="toggleSidebar()"
+          aria-label="Toggle scenario controls"
+        >
+          ☰
+        </button>
+        <div class="flex flex-col">
+          <span class="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">CVRP Explorer</span>
+          <span class="text-lg font-semibold text-slate-900 sm:text-xl">Scenario Planning Dashboard</span>
         </div>
-      </main>
-
-      <aside class="results-panel">
-        <div class="results-panel__content">
-          <app-metrics-cards [metrics]="metrics"></app-metrics-cards>
-          <div class="tabs">
-            <div class="tab-buttons">
-              <button type="button" [class.active]="activeTab === 'routes'" (click)="selectTab('routes')">
-                Routes
-              </button>
-              <button type="button" [class.active]="activeTab === 'compare'" (click)="selectTab('compare')">
-                Compare
-              </button>
-              <button type="button" [class.active]="activeTab === 'log'" (click)="selectTab('log')">
-                Run log
-              </button>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'routes'">
-              <app-routes-tab
-                class="block"
-                [routes]="routes"
-                [highlightVehicle]="highlightVehicle"
-                (highlightChange)="onHighlightChange($event)"
-              ></app-routes-tab>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'compare'">
-              <app-compare-tab
-                class="block"
-                [convergence]="solution?.convergence"
-                [runtimeBreakdown]="solution?.runtimeBreakdown"
-              ></app-compare-tab>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'log'">
-              <app-run-log-tab class="block" [log]="solution?.log"></app-run-log-tab>
-            </div>
+      </div>
+      <div class="flex items-center gap-4 text-sm text-slate-500">
+        <div class="hidden items-center gap-2 sm:flex">
+          <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Algorithm
+            <span class="text-slate-800">{{ activeAlgorithmName }}</span>
+          </span>
+          <span
+            *ngIf="metrics?.feasible === true"
+            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-600"
+            aria-label="Solution feasible"
+          >
+            <span aria-hidden="true">●</span>
+            Feasible
+          </span>
+          <span
+            *ngIf="metrics?.feasible === false"
+            class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-medium text-rose-600"
+            aria-label="Solution not feasible"
+          >
+            <span aria-hidden="true">●</span>
+            Not feasible
+          </span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="hidden text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 sm:inline">UTBM</span>
+          <div class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
+            UX
           </div>
         </div>
-      </aside>
+      </div>
+    </div>
+    <div *ngIf="isSolving" class="relative h-1 overflow-hidden bg-slate-200" aria-live="polite" aria-label="Solver running">
+      <div class="absolute inset-0 animate-pulse bg-gradient-to-r from-sky-400 via-indigo-500 to-sky-400"></div>
+    </div>
+  </header>
+
+  <div *ngIf="toastMessage" class="pointer-events-none fixed top-20 left-1/2 z-50 w-full max-w-sm -translate-x-1/2 px-4">
+    <div
+      class="pointer-events-auto rounded-xl border border-slate-200 bg-white/95 px-4 py-3 text-sm font-medium text-slate-700 shadow-lg"
+      role="status"
+      aria-live="polite"
+    >
+      {{ toastMessage }}
     </div>
   </div>
 
-  <div class="backdrop" *ngIf="isHandset && sidebarOpen" (click)="toggleSidebar()"></div>
+  <div class="relative flex flex-1 overflow-hidden">
+    <div
+      *ngIf="isHandset"
+      class="fixed inset-0 z-20 bg-slate-900/50 transition-opacity"
+      [class.pointer-events-none]="!sidebarOpen"
+      [class.opacity-0]="!sidebarOpen"
+      (click)="toggleSidebar()"
+      aria-hidden="true"
+    ></div>
+
+    <aside
+      class="relative z-30 flex h-full w-[min(100vw,320px)] flex-shrink-0 flex-col gap-4 border-r border-slate-200 bg-white/95 p-4 shadow-xl transition-transform duration-300 ease-in-out focus-within:outline-none lg:static lg:w-[320px] lg:translate-x-0 lg:shadow-none"
+      [class.fixed]="isHandset"
+      [class.inset-y-0]="isHandset"
+      [class.left-0]="isHandset"
+      [class.translate-x-0]="!isHandset || sidebarOpen"
+      [class.-translate-x-full]="isHandset && !sidebarOpen"
+      role="complementary"
+      aria-label="Scenario controls"
+    >
+      <div class="flex flex-1 overflow-hidden">
+        <div class="flex-1 overflow-y-auto pr-2">
+          <app-controls-panel
+            [datasets]="datasets"
+            [algorithms]="algorithms"
+            [config]="config"
+            [solving]="isSolving"
+            (run)="onRun($event)"
+            (reset)="onReset()"
+            (export)="onExport($event)"
+            (configChange)="onConfigChanged($event)"
+          ></app-controls-panel>
+        </div>
+      </div>
+    </aside>
+
+    <div class="flex flex-1 flex-col overflow-hidden">
+      <div class="flex flex-1 flex-col gap-0 overflow-hidden lg:flex-row lg:gap-0">
+        <main
+          class="flex flex-1 flex-col overflow-hidden border-b border-slate-200 bg-slate-100/60 lg:border-b-0 lg:border-r"
+          aria-label="Route map"
+        >
+          <div class="flex flex-1 flex-col gap-4 p-4 sm:p-6">
+            <app-map-view
+              class="flex min-h-[360px] flex-1 flex-col"
+              [depot]="instance?.depot ?? null"
+              [customers]="instance?.customers ?? []"
+              [routes]="routes"
+              [highlightVehicle]="highlightVehicle"
+              [utilization]="utilization"
+            ></app-map-view>
+          </div>
+        </main>
+
+        <aside
+          class="flex w-full flex-col border-t border-slate-200 bg-white/95 shadow-[inset_0_1px_0_rgba(148,163,184,0.25)] backdrop-blur lg:w-1/3 lg:border-t-0 lg:border-l lg:shadow-none xl:w-2/5"
+          aria-label="Results overview"
+        >
+          <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+            <div class="flex flex-col gap-8">
+              <section class="flex flex-col gap-4">
+                <header class="flex flex-wrap items-end justify-between gap-2">
+                  <div class="flex flex-col">
+                    <h2 class="text-lg font-semibold text-slate-900">Performance summary</h2>
+                    <p class="text-sm text-slate-500">Key metrics for the latest solver run</p>
+                  </div>
+                  <span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Live data</span>
+                </header>
+                <app-metrics-cards
+                  [metrics]="metrics"
+                  [algorithmName]="activeAlgorithmName"
+                  [isSolving]="isSolving"
+                ></app-metrics-cards>
+              </section>
+
+              <section class="flex flex-col gap-4">
+                <header class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Fleet overview</h2>
+                    <p class="text-sm text-slate-500">Inspect vehicle performance and analyse solver output.</p>
+                  </div>
+                  <nav class="flex items-center gap-1 rounded-full bg-slate-100 p-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <button
+                      type="button"
+                      class="rounded-full px-3 py-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+                      [ngClass]="{
+                        'bg-white text-slate-900 shadow': activeTab === 'routes',
+                        'text-slate-500 hover:text-slate-700': activeTab !== 'routes'
+                      }"
+                      (click)="selectTab('routes')"
+                      role="tab"
+                      [attr.aria-selected]="activeTab === 'routes'"
+                    >
+                      Routes
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-full px-3 py-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+                      [ngClass]="{
+                        'bg-white text-slate-900 shadow': activeTab === 'compare',
+                        'text-slate-500 hover:text-slate-700': activeTab !== 'compare'
+                      }"
+                      (click)="selectTab('compare')"
+                      role="tab"
+                      [attr.aria-selected]="activeTab === 'compare'"
+                    >
+                      Compare
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded-full px-3 py-1.5 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500"
+                      [ngClass]="{
+                        'bg-white text-slate-900 shadow': activeTab === 'log',
+                        'text-slate-500 hover:text-slate-700': activeTab !== 'log'
+                      }"
+                      (click)="selectTab('log')"
+                      role="tab"
+                      [attr.aria-selected]="activeTab === 'log'"
+                    >
+                      Log
+                    </button>
+                  </nav>
+                </header>
+
+                <div class="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                  <ng-container [ngSwitch]="activeTab">
+                    <app-routes-tab
+                      *ngSwitchCase="'routes'"
+                      class="block"
+                      [routes]="routes"
+                      [highlightVehicle]="highlightVehicle"
+                      (highlightChange)="onHighlightChange($event)"
+                    ></app-routes-tab>
+                    <app-compare-tab
+                      *ngSwitchCase="'compare'"
+                      class="block"
+                      [convergence]="solution?.convergence"
+                      [runtimeBreakdown]="solution?.runtimeBreakdown"
+                    ></app-compare-tab>
+                    <app-run-log-tab *ngSwitchCase="'log'" class="block" [log]="solution?.log"></app-run-log-tab>
+                  </ng-container>
+                </div>
+              </section>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
 </div>

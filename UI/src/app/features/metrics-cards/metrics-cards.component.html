@@ -1,28 +1,23 @@
-<div class="metrics-grid" role="list">
-  <section
+<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3" role="list">
+  <article
     *ngFor="let tile of tiles"
-    class="metric-card"
+    class="group flex h-full flex-col justify-between rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-within:outline-none focus-within:ring-2 focus-within:ring-slate-500/40"
     role="listitem"
-    [ngClass]="tile.cardClass"
-    [attr.aria-label]="tile.label + ' ' + tile.value + (tile.unit ? ' ' + tile.unit : '')"
-    [attr.title]="tile.title || null"
+    tabindex="0"
+    [attr.aria-label]="tile.ariaLabel"
   >
-    <header class="metric-header">
-      <span class="metric-icon" [ngClass]="tile.accent" aria-hidden="true">{{ tile.icon }}</span>
-      <span class="metric-title" [title]="tile.label">{{ tile.label }}</span>
-    </header>
-    <div class="metric-body">
-      <div class="metric-value-row">
-        <span
-          class="metric-value"
-          [ngClass]="tile.valueClass"
-          [title]="tile.value + (tile.unit ? ' ' + tile.unit : '')"
-        >
-          {{ tile.value }}
-        </span>
-        <span *ngIf="tile.unit" class="metric-unit" [title]="tile.unit">{{ tile.unit }}</span>
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-col">
+        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ tile.label }}</span>
+        <div class="mt-2 flex items-baseline gap-2">
+          <span class="text-2xl font-semibold text-slate-900" [ngClass]="tile.valueClass">{{ tile.value }}</span>
+          <span *ngIf="tile.unit" class="text-sm font-medium text-slate-500">{{ tile.unit }}</span>
+        </div>
       </div>
-      <div *ngIf="tile.helper" class="metric-helper" [title]="tile.helper">{{ tile.helper }}</div>
+      <div class="flex h-12 w-12 items-center justify-center rounded-xl text-xl" [ngClass]="tile.iconWrapperClass" aria-hidden="true">
+        {{ tile.icon }}
+      </div>
     </div>
-  </section>
+    <p *ngIf="tile.helper" class="mt-4 text-sm text-slate-500">{{ tile.helper }}</p>
+  </article>
 </div>
