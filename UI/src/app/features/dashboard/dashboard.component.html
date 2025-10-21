@@ -1,20 +1,12 @@
 <div class="dashboard-container">
-  <header class="top-bar">
-    <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
-    <span class="title">CVRP Explorer</span>
-    <span class="status">Mock frontend only ⛅</span>
-  </header>
 
-<<<<<<< HEAD
-  <div *ngIf="toastMessage" class="toast">{{ toastMessage }}</div>
-=======
+
   <div class="dashboard-main">
     <header class="top-bar">
       <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
       <span class="title">CVRP Explorer</span>
       <span class="status">UTBM ⛅</span>
     </header>
->>>>>>> a402795 (vehic cap)
 
   <div class="loading-bar" *ngIf="isSolving">
     <div class="indicator"></div>
