@@ -40,3 +40,28 @@ testem.log
 # System files
 .DS_Store
 Thumbs.db
+
+
+@"
+# Java / Maven
+backend/target/
+*.class
+*.log
+
+# Angular
+UI/node_modules/
+UI/dist/
+UI/.angular/cache/
+UI/.turbo/
+UI/.next/
+
+# OS/IDE
+.DS_Store
+Thumbs.db
+*.iml
+.idea/
+.vscode/
+
+# Misc
+*.tmp
+"@ | Out-File -Encoding UTF8 .gitignore
