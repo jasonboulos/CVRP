@@ -1,83 +1,295 @@
-<div class="dashboard-container">
+<div class="flex h-full min-h-screen flex-col bg-slate-100 text-slate-900">
+  <header class="sticky top-0 z-40 flex items-center gap-3 border-b border-slate-900/40 bg-slate-900 px-4 py-3 text-white shadow-md">
+    <button
+      *ngIf="isHandset"
+      type="button"
+      class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-lg"
+      (click)="toggleSidebar()"
+      aria-label="Toggle scenario controls"
+    >
+      ☰
+    </button>
+    <span class="text-lg font-semibold tracking-wide">CVRP Explorer</span>
+    <div class="ml-auto flex items-center gap-4">
+      <img src="assets/utbm-logo.svg" alt="UTBM" class="h-6 w-auto" />
+    </div>
+  </header>
 
+  <ng-container *ngIf="tabsState$ | async as tabsState">
+    <div class="relative flex flex-1 overflow-hidden">
+      <div
+        *ngIf="isSolving"
+        class="pointer-events-none absolute inset-x-0 top-0 h-1 overflow-hidden bg-slate-900/10"
+        aria-hidden="true"
+      >
+        <div class="h-full w-1/3 animate-pulse bg-indigo-500"></div>
+      </div>
 
-  <div class="dashboard-main">
-    <header class="top-bar">
-      <button type="button" class="menu-button" (click)="toggleSidebar()" *ngIf="isHandset">☰</button>
-      <span class="title">CVRP Explorer</span>
-      <span class="status">UTBM ⛅</span>
-    </header>
-
-  <div class="loading-bar" *ngIf="isSolving">
-    <div class="indicator"></div>
-  </div>
-
-  <div class="dashboard-body">
-    <div class="workspace">
-      <aside class="controls-panel" [class.open]="sidebarOpen" [class.handset]="isHandset">
-        <app-controls-panel
-          [datasets]="datasets"
-          [algorithms]="algorithms"
-          [config]="config"
-          [solving]="isSolving"
-          (run)="onRun($event)"
-          (reset)="onReset()"
-          (export)="onExport($event)"
-          (configChange)="onConfigChanged($event)"
-        ></app-controls-panel>
-      </aside>
-
-      <main class="map-panel">
-        <div class="map-panel__content">
-          <app-map-view
-            class="map-panel__map"
-            [depot]="instance?.depot ?? null"
-            [customers]="instance?.customers ?? []"
-            [routes]="routes"
-            [highlightVehicle]="highlightVehicle"
-            [utilization]="utilization"
-          ></app-map-view>
-        </div>
-      </main>
-
-      <aside class="results-panel">
-        <div class="results-panel__content">
-          <app-metrics-cards [metrics]="metrics"></app-metrics-cards>
-          <div class="tabs">
-            <div class="tab-buttons">
-              <button type="button" [class.active]="activeTab === 'routes'" (click)="selectTab('routes')">
-                Routes
-              </button>
-              <button type="button" [class.active]="activeTab === 'compare'" (click)="selectTab('compare')">
-                Compare
-              </button>
-              <button type="button" [class.active]="activeTab === 'log'" (click)="selectTab('log')">
-                Run log
-              </button>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'routes'">
-              <app-routes-tab
-                class="block"
-                [routes]="routes"
-                [highlightVehicle]="highlightVehicle"
-                (highlightChange)="onHighlightChange($event)"
-              ></app-routes-tab>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'compare'">
-              <app-compare-tab
-                class="block"
-                [convergence]="solution?.convergence"
-                [runtimeBreakdown]="solution?.runtimeBreakdown"
-              ></app-compare-tab>
-            </div>
-            <div class="tab-panel" *ngIf="activeTab === 'log'">
-              <app-run-log-tab class="block" [log]="solution?.log"></app-run-log-tab>
-            </div>
+      <aside
+        class="z-30 flex h-full w-full max-w-[360px] flex-col border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out sm:static sm:translate-x-0"
+        [class.fixed]="isHandset"
+        [class.left-0]="isHandset"
+        [class.top-0]="isHandset"
+        [class.bottom-0]="isHandset"
+        [ngClass]="{
+          '-translate-x-full': isHandset && !sidebarOpen,
+          'translate-x-0': !isHandset || sidebarOpen
+        }"
+      >
+        <div class="flex h-full flex-col overflow-hidden">
+          <div class="flex-1 overflow-y-auto px-4 py-6">
+            <app-controls-panel
+              [datasets]="datasets"
+              [algorithms]="algorithms"
+              [config]="config"
+              [solving]="isSolving"
+              (run)="onRun($event)"
+              (reset)="onReset()"
+              (export)="onExport($event)"
+              (configChange)="onConfigChanged($event)"
+            ></app-controls-panel>
           </div>
         </div>
       </aside>
-    </div>
-  </div>
 
-  <div class="backdrop" *ngIf="isHandset && sidebarOpen" (click)="toggleSidebar()"></div>
+      <section class="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div class="border-b border-slate-200 bg-white">
+          <div
+            class="flex items-center gap-2 overflow-x-auto px-4 py-2"
+            role="tablist"
+            aria-label="Solution result tabs"
+          >
+            <button
+              #tabButton
+              type="button"
+              class="flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+              [class.bg-slate-900]="tabsState.activeTabId === 'map'"
+              [class.text-white]="tabsState.activeTabId === 'map'"
+              [class.bg-slate-100]="tabsState.activeTabId !== 'map'"
+              [class.text-slate-600]="tabsState.activeTabId !== 'map'"
+              role="tab"
+              id="tab-map"
+              data-tab-id="map"
+              [attr.aria-selected]="tabsState.activeTabId === 'map' ? 'true' : 'false'"
+              aria-controls="tab-panel-map"
+              [attr.tabindex]="tabsState.activeTabId === 'map' ? 0 : -1"
+              (click)="activateTab('map')"
+              (keydown)="handleTabKeydown($event, 'map', false)"
+            >
+              Map
+            </button>
+            <ng-container *ngFor="let tab of tabsState.resultTabs; trackBy: trackResultTab">
+              <div class="flex shrink-0 items-center gap-1">
+                <button
+                  #tabButton
+                  type="button"
+                  class="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors"
+                  [class.bg-slate-900]="tabsState.activeTabId === tab.id"
+                  [class.text-white]="tabsState.activeTabId === tab.id"
+                  [class.bg-slate-100]="tabsState.activeTabId !== tab.id"
+                  [class.text-slate-600]="tabsState.activeTabId !== tab.id"
+                  role="tab"
+                  [attr.id]="'tab-' + tab.id"
+                  [attr.data-tab-id]="tab.id"
+                  [attr.aria-selected]="tabsState.activeTabId === tab.id ? 'true' : 'false'"
+                  [attr.aria-controls]="'tab-panel-' + tab.id"
+                  [attr.tabindex]="tabsState.activeTabId === tab.id ? 0 : -1"
+                  (click)="activateTab(tab.id)"
+                  (keydown)="handleTabKeydown($event, tab.id, true)"
+                >
+                  <span>Result {{ tab.runNumber }}</span>
+                  <span class="text-xs opacity-70">{{ tab.summary.totalDistance | number: '1.0-0' }} km</span>
+                </button>
+                <button
+                  type="button"
+                  class="inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                  (click)="closeTab(tab.id, $event)"
+                  (keydown)="handleTabKeydown($event, tab.id, true)"
+                  [attr.aria-label]="'Close result ' + tab.runNumber"
+                >
+                  ✕
+                </button>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-hidden bg-slate-50">
+          <div class="h-full overflow-y-auto" [attr.aria-live]="isSolving ? 'polite' : 'off'">
+            <ng-container *ngIf="tabsState.activeTabId === 'map'; else resultArea">
+              <div id="tab-panel-map" role="tabpanel" aria-labelledby="tab-map" class="flex flex-col gap-6 px-6 py-6">
+                <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div class="h-[440px] w-full">
+                    <app-map-view
+                      class="block h-full w-full"
+                      [depot]="instance?.depot ?? null"
+                      [customers]="instance?.customers ?? []"
+                      [routes]="routes"
+                      [highlightVehicle]="highlightVehicle"
+                      [utilization]="utilization"
+                    ></app-map-view>
+                  </div>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <h2 class="text-lg font-semibold text-slate-800">Last execution summary</h2>
+                      <ng-container *ngIf="getLastRun(tabsState) as lastRun">
+                        <p class="text-sm text-slate-500">
+                          Run #{{ lastRun.runNumber }} • {{ lastRun.createdAt | date: 'short' }}
+                        </p>
+                      </ng-container>
+                    </div>
+                    <button
+                      type="button"
+                      class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      (click)="openLastResult()"
+                      [disabled]="!tabsState.map.lastRun"
+                    >
+                      Open full result
+                    </button>
+                  </div>
+
+                  <ng-container *ngIf="getLastRun(tabsState) as lastRun; else summaryPlaceholder">
+                    <div class="mt-6 grid gap-4 md:grid-cols-2">
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total distance</span>
+                        <div class="mt-2 text-2xl font-semibold text-slate-800">
+                          {{ lastRun.summary.totalDistance | number: '1.0-2' }} km
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicles used</span>
+                        <div class="mt-2 text-2xl font-semibold text-slate-800">
+                          {{ lastRun.summary.vehiclesUsed }}
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Runtime</span>
+                        <div class="mt-2 text-2xl font-semibold text-slate-800">
+                          {{ lastRun.summary.runtimeMs / 1000 | number: '1.1-1' }} s
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                        <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Feasibility</span>
+                        <div
+                          class="mt-2 text-2xl font-semibold"
+                          [ngClass]="{
+                            'text-emerald-600': lastRun.summary.feasible === true,
+                            'text-rose-600': lastRun.summary.feasible === false,
+                            'text-slate-600': lastRun.summary.feasible === null
+                          }"
+                        >
+                          <ng-container [ngSwitch]="lastRun.summary.feasible">
+                            <span *ngSwitchCase="true">Feasible</span>
+                            <span *ngSwitchCase="false">Infeasible</span>
+                            <span *ngSwitchDefault>Pending</span>
+                          </ng-container>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Capacity overview</div>
+                      <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <div class="text-xs uppercase tracking-wide text-slate-400">Total demand</div>
+                          <div class="text-lg font-semibold text-slate-800">
+                            {{ lastRun.summary.totalDemand | number: '1.0-0' }}
+                          </div>
+                        </div>
+                        <div>
+                          <div class="text-xs uppercase tracking-wide text-slate-400">Fleet capacity</div>
+                          <div class="text-lg font-semibold text-slate-800">
+                            {{ lastRun.summary.fleetCapacity | number: '1.0-0' }}
+                          </div>
+                        </div>
+                        <div>
+                          <div class="text-xs uppercase tracking-wide text-slate-400">Utilization</div>
+                          <div>
+                            <span
+                              class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold"
+                              [ngClass]="lastRun.summary.utilizationPct <= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+                            >
+                              {{ lastRun.summary.utilizationPct | number: '1.0-1' }}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="mt-6">
+                      <div class="text-sm font-semibold text-slate-700">Vehicles used</div>
+                      <div class="mt-3 space-y-2">
+                        <ng-container *ngIf="lastRun.vehicles.length > 0; else vehiclePlaceholder">
+                          <button
+                            type="button"
+                            class="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-left shadow-sm transition hover:border-indigo-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                            *ngFor="let route of lastRun.vehicles; trackBy: trackVehicle"
+                            (mouseenter)="onHighlightChange(route.vehicle)"
+                            (mouseleave)="onHighlightChange(null)"
+                            (focus)="onHighlightChange(route.vehicle)"
+                            (blur)="onHighlightChange(null)"
+                          >
+                            <div class="flex items-center justify-between gap-2">
+                              <div class="text-sm font-semibold text-slate-700">Vehicle {{ route.vehicle }}</div>
+                              <div class="text-xs uppercase tracking-wide text-slate-400">
+                                Stops {{ route.nodes.length > 1 ? route.nodes.length - 2 : 0 }}
+                              </div>
+                            </div>
+                            <div class="mt-2 flex flex-wrap gap-4 text-sm text-slate-600">
+                              <span>Load: {{ route.load | number: '1.0-0' }}</span>
+                              <span>Distance: {{ route.distance | number: '1.0-2' }} km</span>
+                            </div>
+                          </button>
+                        </ng-container>
+                        <ng-template #vehiclePlaceholder>
+                          <div class="rounded-xl border border-dashed border-slate-200 bg-white p-4 text-sm text-slate-500">
+                            Run the solver to view vehicle usage.
+                          </div>
+                        </ng-template>
+                      </div>
+                    </div>
+                  </ng-container>
+                </div>
+              </div>
+            </ng-container>
+            <ng-template #summaryPlaceholder>
+              <p class="mt-1 text-sm text-slate-500">Run the solver to populate the latest summary.</p>
+            </ng-template>
+
+            <ng-template #resultArea>
+              <ng-container *ngIf="getActiveResult(tabsState) as activeResult; else resultPlaceholder">
+                <app-result-report
+                  [result]="activeResult"
+                  [runs]="tabsState.resultTabs"
+                  [attr.id]="'tab-panel-' + activeResult.id"
+                  role="tabpanel"
+                  [attr.aria-labelledby]="'tab-' + activeResult.id"
+                ></app-result-report>
+              </ng-container>
+            </ng-template>
+            <ng-template #resultPlaceholder>
+              <div class="px-6 py-10 text-sm text-slate-500">Select a result run to view its detailed report.</div>
+            </ng-template>
+          </div>
+        </div>
+      </section>
+
+      <div
+        *ngIf="isHandset && sidebarOpen"
+        class="fixed inset-0 z-20 bg-slate-900/40"
+        (click)="toggleSidebar()"
+        aria-hidden="true"
+      ></div>
+    </div>
+  </ng-container>
+
+  <div
+    *ngIf="toastMessage"
+    class="pointer-events-none fixed left-1/2 top-20 z-50 -translate-x-1/2 rounded-full border border-slate-200 bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg"
+  >
+    {{ toastMessage }}
+  </div>
 </div>

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, QueryList, ViewChildren, inject } from '@angular/core';
 import { Subscription, fromEvent } from 'rxjs';
 import {
   DashboardMetrics,
@@ -8,22 +8,31 @@ import {
   SolveResponse,
   SolverRunConfig,
   AlgorithmSummary,
+  ResultTabData,
+  RunResultSummary,
 } from '../../core/models';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { SolverAdapterService } from '../../core/services/solver-adapter.service';
 import { MetricsService } from '../../core/services/metrics.service';
 import { ExportService } from '../../core/services/export.service';
+import { TabsStoreService, TabsState } from './tabs-store.service';
 
 @Component({
   selector: 'app-dashboard',
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.scss'],
+  styleUrls: [],
+  host: {
+    class: 'block h-full'
+  },
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private readonly mockDataService = inject(MockDataService);
   private readonly solverService = inject(SolverAdapterService);
   private readonly metricsService = inject(MetricsService);
   private readonly exportService = inject(ExportService);
+  private readonly tabsStore = inject(TabsStoreService);
+
+  @ViewChildren('tabButton') tabButtons!: QueryList<ElementRef<HTMLButtonElement>>;
 
   datasets: DatasetDefinition[] = [];
   config: SolverRunConfig = this.createDefaultConfig();
@@ -34,8 +43,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isSolving = false;
   isHandset = false;
   sidebarOpen = true;
-  activeTab: 'routes' | 'compare' | 'log' = 'routes';
   toastMessage: string | null = null;
+
+  readonly tabsState$ = this.tabsStore.state$;
 
   private readonly subscriptions = new Subscription();
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -83,10 +93,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }
   }
 
-  selectTab(tab: 'routes' | 'compare' | 'log'): void {
-    this.activeTab = tab;
-  }
-
   onRun(config: SolverRunConfig): void {
     this.config = this.cloneConfig(config);
     this.executeRun();
@@ -101,6 +107,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.solution = null;
     this.metrics = null;
     this.highlightVehicle = null;
+    this.tabsStore.reset();
   }
 
   onConfigChanged(config: SolverRunConfig): void {
@@ -146,6 +153,71 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.metricsService.getUtilization(this.instance, this.solution);
   }
 
+  openLastResult(): void {
+    this.tabsStore.openLastResult();
+  }
+
+  activateTab(tabId: string): void {
+    this.tabsStore.activateTab(tabId);
+  }
+
+  closeTab(tabId: string, event?: Event): void {
+    event?.stopPropagation();
+    this.tabsStore.closeTab(tabId);
+  }
+
+  handleTabKeydown(event: KeyboardEvent, tabId: string, closable: boolean): void {
+    const key = event.key;
+    if (key === 'ArrowRight' || key === 'ArrowLeft') {
+      event.preventDefault();
+      const ordered = this.tabsStore.getOrderedTabIds();
+      const currentIndex = ordered.indexOf(tabId);
+      if (currentIndex === -1) {
+        return;
+      }
+      const offset = key === 'ArrowRight' ? 1 : -1;
+      let nextIndex = currentIndex + offset;
+      if (nextIndex < 0) {
+        nextIndex = ordered.length - 1;
+      } else if (nextIndex >= ordered.length) {
+        nextIndex = 0;
+      }
+      const nextTabId = ordered[nextIndex];
+      this.tabsStore.activateTab(nextTabId);
+      queueMicrotask(() => {
+        const button = this.getTabButtonElement(nextTabId);
+        button?.focus();
+      });
+      return;
+    }
+
+    if ((key === 'Delete' || key === 'Backspace') && closable) {
+      event.preventDefault();
+      this.tabsStore.closeTab(tabId);
+      queueMicrotask(() => {
+        const state = this.tabsStore.snapshot;
+        const button = this.getTabButtonElement(state.activeTabId);
+        button?.focus();
+      });
+    }
+  }
+
+  trackResultTab(_: number, tab: ResultTabData): string {
+    return tab.id;
+  }
+
+  trackVehicle(_: number, route: RoutePlan): number {
+    return route.vehicle;
+  }
+
+  getActiveResult(state: TabsState): ResultTabData | null {
+    return state.resultTabs.find((tab) => tab.id === state.activeTabId) ?? null;
+  }
+
+  getLastRun(state: TabsState): ResultTabData | null {
+    return state.map.lastRun;
+  }
+
   private async executeRun(): Promise<void> {
     try {
       this.isSolving = true;
@@ -163,6 +235,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.solution = solution;
       this.metrics = this.metricsService.computeMetrics(solution);
       this.highlightVehicle = null;
+      this.persistResult(solution);
     } catch (error) {
       console.error(error);
       if (this.config.algorithm === 'rl') {
@@ -217,6 +290,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
     };
   }
 
+  private cloneInstance(instance: ProblemInstance): ProblemInstance {
+    return {
+      id: instance.id,
+      name: instance.name,
+      depot: { ...instance.depot },
+      customers: instance.customers.map((customer) => ({ ...customer })),
+    };
+  }
+
   private showToast(message: string): void {
     this.toastMessage = message;
     if (this.toastTimeout) {
@@ -226,5 +308,61 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.toastMessage = null;
       this.toastTimeout = null;
     }, 2200);
+  }
+
+  private persistResult(solution: SolveResponse): void {
+    if (!this.instance) {
+      return;
+    }
+    const summary = this.buildRunSummary(this.instance, this.config, solution);
+    const instanceSnapshot = this.cloneInstance(this.instance);
+    const configSnapshot = this.cloneConfig(this.config);
+
+    this.tabsStore.registerResult({
+      summary,
+      vehicles: solution.routes,
+      customers: instanceSnapshot.customers,
+      geometry: {
+        depot: instanceSnapshot.depot,
+        routes: solution.routes,
+      },
+      rawRequest: {
+        config: configSnapshot,
+        instance: instanceSnapshot,
+      },
+      rawResponse: solution,
+    });
+  }
+
+  private buildRunSummary(
+    instance: ProblemInstance,
+    config: SolverRunConfig,
+    solution: SolveResponse,
+  ): RunResultSummary {
+    const totalDemand = instance.customers.reduce((sum, customer) => sum + customer.demand, 0);
+    const fleetCapacity = config.vehicles.vehicles.reduce((sum, vehicle) => sum + vehicle.capacity, 0);
+    const rawUtilization = fleetCapacity > 0 ? (totalDemand / fleetCapacity) * 100 : 0;
+    const utilizationPct = Number(rawUtilization.toFixed(1));
+
+    return {
+      totalDistance: Number(solution.distance.toFixed(2)),
+      vehiclesUsed: solution.vehiclesUsed,
+      runtimeMs: solution.runtimeMs,
+      feasible: typeof solution.feasible === 'boolean' ? solution.feasible : null,
+      capacityViolations: solution.violations?.capacity ?? 0,
+      totalDemand: Number(totalDemand.toFixed(2)),
+      fleetCapacity: Number(fleetCapacity.toFixed(2)),
+      utilizationPct,
+    };
+  }
+
+  private getTabButtonElement(tabId: string): HTMLButtonElement | null {
+    const buttons = this.tabButtons?.toArray() ?? [];
+    for (const item of buttons) {
+      if (item.nativeElement.dataset['tabId'] === tabId) {
+        return item.nativeElement;
+      }
+    }
+    return null;
   }
 }

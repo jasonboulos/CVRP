@@ -1,0 +1,249 @@
+<div class="flex h-full flex-col gap-8 px-6 py-6">
+  <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-xl font-semibold text-slate-900">Result run #{{ result.runNumber }}</h1>
+        <p class="text-sm text-slate-500">Executed {{ result.createdAt | date: 'medium' }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-slate-500">Feasibility</span>
+        <span
+          class="rounded-full px-3 py-1 text-sm font-semibold"
+          [ngClass]="{
+            'bg-emerald-100 text-emerald-700': result.summary.feasible === true,
+            'bg-rose-100 text-rose-700': result.summary.feasible === false,
+            'bg-slate-200 text-slate-600': result.summary.feasible === null
+          }"
+        >
+          <ng-container [ngSwitch]="result.summary.feasible">
+            <span *ngSwitchCase="true">Feasible</span>
+            <span *ngSwitchCase="false">Infeasible</span>
+            <span *ngSwitchDefault>Pending</span>
+          </ng-container>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="performance-summary" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="performance-summary" class="text-lg font-semibold text-slate-800">Performance summary</h2>
+    </div>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total distance</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">{{ result.summary.totalDistance | number: '1.0-2' }} km</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Runtime</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">{{ result.summary.runtimeMs / 1000 | number: '1.1-1' }} s</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicles used</div>
+        <div class="mt-2 text-2xl font-semibold text-slate-900">{{ result.summary.vehiclesUsed }}</div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Capacity violations</div>
+        <div
+          class="mt-2 text-2xl font-semibold"
+          [ngClass]="result.summary.capacityViolations > 0 ? 'text-rose-600' : 'text-emerald-600'"
+        >
+          {{ result.summary.capacityViolations }}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="capacity-overview" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="capacity-overview" class="text-lg font-semibold text-slate-800">Capacity overview</h2>
+    </div>
+    <div class="mt-4 grid gap-4 sm:grid-cols-3">
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total demand</div>
+        <div class="mt-2 text-xl font-semibold text-slate-900">{{ result.summary.totalDemand | number: '1.0-0' }}</div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Fleet capacity</div>
+        <div class="mt-2 text-xl font-semibold text-slate-900">{{ result.summary.fleetCapacity | number: '1.0-0' }}</div>
+      </div>
+      <div>
+        <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">Utilization</div>
+        <div class="mt-2">
+          <span
+            class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold"
+            [ngClass]="result.summary.utilizationPct <= 100 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+          >
+            {{ result.summary.utilizationPct | number: '1.0-1' }}%
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="fleet-overview" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="fleet-overview" class="text-lg font-semibold text-slate-800">Fleet overview</h2>
+      <div class="text-sm text-slate-500">{{ result.vehicles.length }} vehicles configured</div>
+    </div>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
+        *ngFor="let route of result.vehicles; trackBy: trackVehicle"
+      >
+        <div class="flex items-center justify-between">
+          <div class="text-sm font-semibold text-slate-800">Vehicle {{ route.vehicle }}</div>
+          <div class="text-xs uppercase tracking-wide text-slate-400">Stops {{ getStops(route) }}</div>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Load</div>
+            <div class="font-semibold text-slate-700">{{ route.load | number: '1.0-0' }}</div>
+          </div>
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Distance</div>
+            <div class="font-semibold text-slate-700">{{ route.distance | number: '1.0-2' }} km</div>
+          </div>
+        </div>
+        <div class="mt-3 text-xs uppercase tracking-wide text-slate-400">Path</div>
+        <div class="mt-2 flex flex-wrap gap-1 text-xs text-slate-600">
+          <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5" *ngFor="let node of route.nodes">
+            {{ formatNode(node) }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="compare-section" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <h2 id="compare-section" class="text-lg font-semibold text-slate-800">Compare runs</h2>
+      <label class="flex items-center gap-2 text-sm text-slate-600">
+        <span>Compare with</span>
+        <select
+          class="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          (change)="onCompareTargetChange($event)"
+          [disabled]="compareOptions.length === 0"
+        >
+          <option *ngFor="let option of compareOptions" [selected]="option.id === compareTargetId" [value]="option.id">
+            Run #{{ option.runNumber }}
+          </option>
+        </select>
+      </label>
+    </div>
+    <ng-container *ngIf="compareTarget as target; else comparePlaceholder">
+      <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm" *ngFor="let row of comparisonRows">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ row.label }}</div>
+          <div class="mt-2 text-2xl font-semibold text-slate-900">
+            {{ row.current | number: '1.0-2' }}
+            <span *ngIf="row.unit" class="text-sm font-medium text-slate-500">{{ row.unit }}</span>
+          </div>
+          <div class="mt-1 text-xs text-slate-500">
+            Target: Run #{{ target.runNumber }} • {{ row.target | number: '1.0-2' }}
+            <span *ngIf="row.unit"> {{ row.unit }}</span>
+          </div>
+          <ng-container *ngIf="formatDelta(row) as delta">
+            <div
+              class="mt-3 text-sm font-semibold"
+              [ngClass]="{
+                'text-emerald-600': delta.improved === true,
+                'text-rose-600': delta.improved === false,
+                'text-slate-500': delta.improved === null
+              }"
+            >
+              <span *ngIf="delta.value > 0">+{{ delta.value | number: '1.0-2' }}</span>
+              <span *ngIf="delta.value < 0">{{ delta.value | number: '1.0-2' }}</span>
+              <span *ngIf="delta.value === 0">No change</span>
+              <span *ngIf="delta.value !== 0 && row.unit" class="text-xs font-medium text-slate-500"> {{ row.unit }}</span>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </ng-container>
+    <ng-template #comparePlaceholder>
+      <p class="mt-4 text-sm text-slate-500">Run at least two scenarios to compare their metrics.</p>
+    </ng-template>
+  </section>
+
+  <section aria-labelledby="charts-section" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="charts-section" class="text-lg font-semibold text-slate-800">Charts</h2>
+    </div>
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="flex items-center justify-between text-sm text-slate-600">
+          <span class="font-semibold text-slate-700">Distance trend</span>
+          <span>km</span>
+        </div>
+        <svg
+          class="mt-4 h-48 w-full"
+          preserveAspectRatio="none"
+          [attr.viewBox]="chartViewBox"
+          role="img"
+          aria-label="Distance by run"
+        >
+          <path
+            *ngIf="distanceTrend.length > 0"
+            [attr.d]="buildLinePath(distanceTrend)"
+            fill="none"
+            stroke="#6366f1"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+        <div *ngIf="distanceTrend.length === 0" class="mt-4 text-sm text-slate-500">No run history yet.</div>
+        <div *ngIf="distanceTrend.length > 0" class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+          <span
+            *ngFor="let point of distanceTrend"
+            class="rounded-full bg-white px-2 py-0.5"
+          >
+            {{ point.label }}
+          </span>
+        </div>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="flex items-center justify-between text-sm text-slate-600">
+          <span class="font-semibold text-slate-700">Runtime trend</span>
+          <span>seconds</span>
+        </div>
+        <svg
+          class="mt-4 h-48 w-full"
+          preserveAspectRatio="none"
+          [attr.viewBox]="chartViewBox"
+          role="img"
+          aria-label="Runtime by run"
+        >
+          <path
+            *ngIf="runtimeTrend.length > 0"
+            [attr.d]="buildLinePath(runtimeTrend)"
+            fill="none"
+            stroke="#22c55e"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          ></path>
+        </svg>
+        <div *ngIf="runtimeTrend.length === 0" class="mt-4 text-sm text-slate-500">No run history yet.</div>
+        <div *ngIf="runtimeTrend.length > 0" class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+          <span
+            *ngFor="let point of runtimeTrend"
+            class="rounded-full bg-white px-2 py-0.5"
+          >
+            {{ point.label }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="logs-section" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex items-center justify-between">
+      <h2 id="logs-section" class="text-lg font-semibold text-slate-800">Logs</h2>
+    </div>
+    <div class="mt-4">
+      <app-run-log-tab [log]="result.rawResponse.log"></app-run-log-tab>
+    </div>
+  </section>
+</div>

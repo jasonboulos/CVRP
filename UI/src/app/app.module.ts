@@ -8,8 +8,9 @@ import { ControlsPanelComponent } from './features/controls-panel/controls-panel
 import { MapViewComponent } from './features/map-view/map-view.component';
 import { MetricsCardsComponent } from './features/metrics-cards/metrics-cards.component';
 import { RoutesTabComponent } from './features/routes-tab/routes-tab.component';
-import { CompareTabComponent } from './features/compare-tab/compare-tab.component';
 import { RunLogTabComponent } from './features/run-log-tab/run-log-tab.component';
+import { CompareTabComponent } from './features/compare-tab/compare-tab.component';
+import { ResultReportComponent } from './features/result-report/result-report.component';
 
 @NgModule({
   declarations: [
@@ -21,6 +22,7 @@ import { RunLogTabComponent } from './features/run-log-tab/run-log-tab.component
     RoutesTabComponent,
     CompareTabComponent,
     RunLogTabComponent,
+    ResultReportComponent,
   ],
   imports: [
     BrowserModule,
