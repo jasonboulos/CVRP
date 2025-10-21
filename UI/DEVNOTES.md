@@ -3,12 +3,13 @@
 ## Tabs store
 - Location: `src/app/features/dashboard/tabs-store.service.ts`.
 - Exposes `state$`, `registerResult`, `activateTab`, `closeTab`, `openLastResult`, `openResult`, `reset`, and `getOrderedTabIds`.
-- `registerResult` pins the immutable map tab, appends a `ResultTabData`, tracks run order, and updates the active tab.
+- `registerResult` pins the immutable map tab, appends a `ResultTabData`, tracks run order, formats titles as `Result #N — ALGO · distance`, and keeps the active tab on Map after each run.
 - `openLastResult` reopens the latest run even if its tab has been closed (map summary keeps a reference).
 
 ## Run completion wiring
-- `DashboardComponent.persistResult` (in `dashboard.component.ts`) builds the `RunResultSummary`, snapshots the instance/config, and calls `tabsStore.registerResult` after each successful run.
+- `DashboardComponent.persistResult` (in `dashboard.component.ts`) builds the `RunResultSummary`, snapshots the instance/config, attaches algorithm metadata, and calls `tabsStore.registerResult` after each successful run.
 - The map tab UI consumes `tabsState$` (see `dashboard.component.html`) and switches tab content with `activateTab`, `closeTab`, and keyboard handlers tied to `getOrderedTabIds`.
+- Result tabs stay in the background when a run finishes; a toast (`Run #N — ALGO ready`) gives users a one-click “Open” affordance.
 
 ## Hover → map highlight
 - The vehicle roster in the map tab calls `setHoverVehicle` on hover/focus and resets on leave/blur so the map dims non-hovered polylines.

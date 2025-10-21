@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { ResultTabData } from '../../core/models';
+import { ResultTabData, RunAlgorithmInfo } from '../../core/models';
 
 export interface MapTabState {
   readonly id: 'map';
@@ -21,6 +21,7 @@ interface CreateResultTabPayload {
   geometry: ResultTabData['geometry'];
   rawRequest: ResultTabData['rawRequest'];
   rawResponse: ResultTabData['rawResponse'];
+  algorithm: RunAlgorithmInfo;
   title?: string;
   id?: string;
   createdAt?: number;
@@ -53,7 +54,8 @@ export class TabsStoreService {
     const createdAt = payload.createdAt ?? Date.now();
     const runNumber = payload.runNumber ?? this.runCounter + 1;
     const id = payload.id ?? `result-${createdAt}-${runNumber}`;
-    const title = payload.title ?? `Result ${runNumber}`;
+    const title =
+      payload.title ?? this.buildResultTitle(runNumber, payload.algorithm.code, payload.summary.totalDistance);
     this.runCounter = Math.max(this.runCounter, runNumber);
 
     const result: ResultTabData = {
@@ -61,6 +63,7 @@ export class TabsStoreService {
       title,
       runNumber,
       createdAt,
+      algorithm: payload.algorithm,
       summary: payload.summary,
       vehicles: payload.vehicles,
       customers: payload.customers,
@@ -71,7 +74,7 @@ export class TabsStoreService {
 
     const state = this.snapshot;
     const nextState: TabsState = {
-      activeTabId: result.id,
+      activeTabId: 'map',
       map: {
         ...state.map,
         lastRun: result,
@@ -148,5 +151,14 @@ export class TabsStoreService {
   getOrderedTabIds(): string[] {
     const state = this.snapshot;
     return ['map', ...state.resultTabs.map((tab) => tab.id)];
+}
+
+  private buildResultTitle(runNumber: number, algorithmCode: string, distance: number): string {
+    const base = `Result #${runNumber} — ${algorithmCode}`;
+    if (Number.isFinite(distance)) {
+      const rounded = Math.round(distance);
+      return `${base} · ${rounded} km`;
+    }
+    return base;
   }
 }

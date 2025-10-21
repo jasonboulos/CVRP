@@ -8,8 +8,10 @@ import {
   SolveResponse,
   SolverRunConfig,
   AlgorithmSummary,
+  AlgorithmId,
   ResultTabData,
   RunResultSummary,
+  RunAlgorithmInfo,
 } from '../../core/models';
 import { MockDataService } from '../../core/services/mock-data.service';
 import { SolverAdapterService } from '../../core/services/solver-adapter.service';
@@ -46,12 +48,13 @@ export class DashboardComponent implements OnInit, OnDestroy {
   isInfoRailDrawer = false;
   infoRailOpen = true;
   sidebarOpen = true;
-  toastMessage: string | null = null;
+  toast: { message: string; actionLabel?: string; actionResultId?: string } | null = null;
 
   readonly tabsState$ = this.tabsStore.state$;
 
   private readonly subscriptions = new Subscription();
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+  private algorithmLookup = new Map<AlgorithmId, AlgorithmSummary>();
 
   private readonly vehicleColorPalette = [
     '#1f77b4',
@@ -75,7 +78,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   get algorithms(): AlgorithmSummary[] {
-    return this.solverService.getAlgorithms();
+    return Array.from(this.algorithmLookup.values());
   }
 
   ngOnInit(): void {
@@ -83,6 +86,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!this.config.datasetId && this.datasets.length > 0) {
       this.config.datasetId = this.datasets[0].id;
     }
+    this.refreshAlgorithmLookup();
     this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
     this.updateBreakpoint(window.innerWidth);
     this.sidebarOpen = !this.isHandset;
@@ -115,6 +119,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   onRun(config: SolverRunConfig): void {
     this.config = this.cloneConfig(config);
+    this.tabsStore.activateTab('map');
     this.executeRun();
     if (this.isHandset) {
       this.sidebarOpen = false;
@@ -239,6 +244,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   openLastResult(): void {
     this.tabsStore.openLastResult();
+    this.dismissToast();
   }
 
   activateTab(tabId: string): void {
@@ -394,15 +400,51 @@ export class DashboardComponent implements OnInit, OnDestroy {
     };
   }
 
-  private showToast(message: string): void {
-    this.toastMessage = message;
+  private showToast(message: string, options?: { actionLabel?: string; actionResultId?: string }): void {
+    this.toast = {
+      message,
+      actionLabel: options?.actionLabel,
+      actionResultId: options?.actionResultId,
+    };
     if (this.toastTimeout) {
       clearTimeout(this.toastTimeout);
     }
     this.toastTimeout = setTimeout(() => {
-      this.toastMessage = null;
+      this.dismissToast();
+    }, 2600);
+  }
+
+  private refreshAlgorithmLookup(): void {
+    this.algorithmLookup.clear();
+    const summaries = this.solverService.getAlgorithms();
+    summaries.forEach((algorithm) => {
+      this.algorithmLookup.set(algorithm.id, algorithm);
+    });
+  }
+
+  private buildAlgorithmInfo(algorithmId: AlgorithmId): RunAlgorithmInfo {
+    const summary = this.algorithmLookup.get(algorithmId);
+    const name = summary?.name ?? algorithmId.toUpperCase();
+    const code = algorithmId.toUpperCase();
+    return { id: algorithmId, name, code };
+  }
+
+  onToastAction(event: Event): void {
+    event.stopPropagation();
+    event.preventDefault();
+    const targetId = this.toast?.actionResultId;
+    if (targetId) {
+      this.tabsStore.activateTab(targetId);
+    }
+    this.dismissToast();
+  }
+
+  private dismissToast(): void {
+    if (this.toastTimeout) {
+      clearTimeout(this.toastTimeout);
       this.toastTimeout = null;
-    }, 2200);
+    }
+    this.toast = null;
   }
 
   private withRouteColors(solution: SolveResponse): SolveResponse {
@@ -420,8 +462,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const summary = this.buildRunSummary(this.instance, this.config, solution);
     const instanceSnapshot = this.cloneInstance(this.instance);
     const configSnapshot = this.cloneConfig(this.config);
+    const algorithm = this.buildAlgorithmInfo(this.config.algorithm);
 
-    this.tabsStore.registerResult({
+    const result = this.tabsStore.registerResult({
       summary,
       vehicles: solution.routes,
       customers: instanceSnapshot.customers,
@@ -434,10 +477,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
         instance: instanceSnapshot,
       },
       rawResponse: solution,
+      algorithm,
     });
     if (this.isInfoRailDrawer) {
       this.infoRailOpen = true;
     }
+    this.showToast(`Run #${result.runNumber} — ${result.algorithm.code} ready`, {
+      actionLabel: 'Open',
+      actionResultId: result.id,
+    });
   }
 
   private buildRunSummary(
