@@ -1,13 +1,13 @@
-<div class="grid gap-4 md:grid-cols-2">
-  <div class="panel">
-    <div class="panel__header">
+<div class="grid gap-4 lg:grid-cols-2">
+  <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+    <header class="flex items-center justify-between">
       <div>
-        <div class="panel__title">Convergence trend</div>
-        <div class="panel__subtitle">Mocked best distance improvement</div>
+        <h3 class="text-base font-semibold text-slate-900">Convergence trend</h3>
+        <p class="text-sm text-slate-500">Mocked best distance improvement</p>
       </div>
-    </div>
-    <div class="flex items-center justify-center">
-      <svg [attr.width]="width" [attr.height]="height" class="max-w-full">
+    </header>
+    <div class="flex min-h-[220px] items-center justify-center">
+      <svg [attr.width]="width" [attr.height]="height" class="h-full w-full max-w-full">
         <path
           *ngIf="linePath; else convergencePlaceholder"
           [attr.d]="linePath"
@@ -19,31 +19,31 @@
         ></path>
       </svg>
       <ng-template #convergencePlaceholder>
-        <div class="text-xs text-slate-400">Run a scenario to view convergence data.</div>
+        <p class="text-sm text-slate-500">Run a scenario to view convergence data.</p>
       </ng-template>
     </div>
-  </div>
+  </section>
 
-  <div class="panel">
-    <div class="panel__header">
+  <section class="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+    <header class="flex items-center justify-between">
       <div>
-        <div class="panel__title">Runtime breakdown</div>
-        <div class="panel__subtitle">Stages of the mock solver</div>
+        <h3 class="text-base font-semibold text-slate-900">Runtime breakdown</h3>
+        <p class="text-sm text-slate-500">Stages of the mock solver</p>
       </div>
-    </div>
+    </header>
     <div *ngIf="bars.length > 0; else runtimePlaceholder" class="flex flex-col gap-3">
-      <div *ngFor="let bar of bars">
-        <div class="flex justify-between text-xs text-slate-500">
+      <div *ngFor="let bar of bars" class="flex flex-col gap-2">
+        <div class="flex items-center justify-between text-xs text-slate-500">
           <span>{{ bar.label }}</span>
-          <span>{{ bar.value }} ms</span>
+          <span class="font-semibold text-slate-700">{{ bar.value }} ms</span>
         </div>
-        <div class="h-2 rounded-full bg-slate-200">
-          <div class="h-2 rounded-full bg-emerald-400 transition-all" [style.width.%]="bar.width"></div>
+        <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+          <div class="h-full rounded-full bg-indigo-400 transition-all" [style.width.%]="bar.width"></div>
         </div>
       </div>
     </div>
     <ng-template #runtimePlaceholder>
-      <div class="text-xs text-slate-400">Runtime metrics appear after running the solver.</div>
+      <p class="text-sm text-slate-500">Runtime metrics appear after running the solver.</p>
     </ng-template>
-  </div>
+  </section>
 </div>

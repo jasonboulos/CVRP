@@ -1,101 +1,112 @@
-<div class="map-card h-full">
-  <div class="map-card__header">
-    <div>
-      <h3 class="text-lg font-semibold text-slate-800">Route Map</h3>
-      <p class="text-xs uppercase tracking-wide text-slate-500">
-        Depot and customer layout ({{ customers.length }} customers)
+<div class="flex h-full flex-col rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
+  <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+    <div class="flex flex-col">
+      <h3 class="text-lg font-semibold text-slate-900">Route map</h3>
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        Depot and customer layout · {{ customers.length }} customers
       </p>
     </div>
-    <div class="flex items-center gap-2 text-xs text-slate-500">
-      🚚 Utilization {{ utilization | number: '1.0-1' }}%
+    <div class="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+      <span aria-hidden="true">🚚</span>
+      Utilisation
+      <span class="font-semibold text-slate-800">{{ utilization | number: '1.0-1' }}%</span>
     </div>
   </div>
 
-  <div class="map-card__content">
-    <div class="map-canvas" *ngIf="depot">
-      <svg
-        [attr.viewBox]="'0 0 ' + width + ' ' + height"
-        preserveAspectRatio="xMidYMid meet"
-        class="map-svg"
-        id="cvrp-map"
-      >
-        <defs>
-          <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#cbd5f5" stroke-width="0.5" opacity="0.3" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
+  <div class="flex flex-1 items-center justify-center overflow-hidden bg-slate-50/70 p-4">
+    <div class="relative flex h-full w-full max-h-[720px] flex-1 items-center justify-center">
+      <div *ngIf="depot; else emptyMap" class="flex h-full w-full">
+        <svg
+          [attr.viewBox]="'0 0 ' + width + ' ' + height"
+          preserveAspectRatio="xMidYMid meet"
+          class="h-full w-full rounded-xl bg-slate-100 ring-1 ring-inset ring-slate-200"
+          id="cvrp-map"
+        >
+          <defs>
+            <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+              <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#cbd5f5" stroke-width="0.5" opacity="0.3" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#grid)" />
 
-        <g class="map-routes">
-          <g
-            *ngFor="let route of routes; trackBy: trackByRoute"
-            class="map-route"
-            [class.map-route--dimmed]="isRouteDimmed(route)"
-            [class.map-route--highlight]="isRouteHighlighted(route)"
-          >
-            <polyline
-              class="map-route__line"
-              [attr.points]="toPolyline(route.nodes)"
-              [attr.stroke]="route.color || '#3b82f6'"
-              [attr.stroke-width]="getRouteStrokeWidth(route)"
-              fill="none"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              [attr.stroke-opacity]="getRouteStrokeOpacity(route)"
-            ></polyline>
-            <ng-container *ngFor="let segment of getRouteSegments(route); trackBy: trackBySegment">
-              <g
-                class="map-segment"
-                [attr.transform]="'rotate(' + segment.angle + ' ' + segment.midX + ' ' + segment.midY + ')'"
-              >
-                <text class="map-segment__label" [attr.x]="segment.midX" [attr.y]="segment.midY">
-                  {{ segment.label }}
-                </text>
-              </g>
-            </ng-container>
-          </g>
-        </g>
-
-        <g class="map-customers">
-          <g *ngFor="let customer of customers">
-            <circle
-              [attr.cx]="scaleX(customer.x)"
-              [attr.cy]="scaleY(customer.y)"
-              r="6"
-              class="map-node map-node--customer"
+          <g>
+            <g
+              *ngFor="let route of routes; trackBy: trackByRoute"
+              [class.opacity-40]="isRouteDimmed(route)"
+              [class.opacity-100]="isRouteHighlighted(route)"
             >
-              <title>
-                Customer {{ customer.id }} • Demand: {{ customer.demand }}
-              </title>
+              <polyline
+                class="fill-none transition-all duration-300"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                [attr.points]="toPolyline(route.nodes)"
+                [attr.stroke]="route.color || '#3b82f6'"
+                [attr.stroke-width]="getRouteStrokeWidth(route)"
+                [attr.stroke-opacity]="getRouteStrokeOpacity(route)"
+              ></polyline>
+              <ng-container *ngFor="let segment of getRouteSegments(route); trackBy: trackBySegment">
+                <g [attr.transform]="'rotate(' + segment.angle + ' ' + segment.midX + ' ' + segment.midY + ')'">
+                  <text
+                    class="select-none fill-slate-700 text-[11px] font-medium [paint-order:stroke_fill] [stroke-width:3]"
+                    [attr.x]="segment.midX"
+                    [attr.y]="segment.midY"
+                    stroke="#ffffff"
+                    text-anchor="middle"
+                    dominant-baseline="middle"
+                  >
+                    {{ segment.label }}
+                  </text>
+                </g>
+              </ng-container>
+            </g>
+          </g>
+
+          <g>
+            <g *ngFor="let customer of customers">
+              <circle
+                [attr.cx]="scaleX(customer.x)"
+                [attr.cy]="scaleY(customer.y)"
+                r="6"
+                class="fill-white stroke-slate-500/80 transition-colors duration-200"
+              >
+                <title>
+                  Customer {{ customer.id }} • Demand: {{ customer.demand }}
+                </title>
+              </circle>
+              <text
+                [attr.x]="scaleX(customer.x) + 10"
+                [attr.y]="scaleY(customer.y) + 4"
+                class="select-none text-[11px] font-medium text-slate-500"
+              >
+                {{ customer.id }}
+              </text>
+            </g>
+          </g>
+
+          <g *ngIf="depot as depotPoint">
+            <circle
+              [attr.cx]="scaleX(depotPoint.x)"
+              [attr.cy]="scaleY(depotPoint.y)"
+              r="12"
+              class="fill-indigo-600 stroke-slate-800"
+            >
+              <title>Depot • Origin</title>
             </circle>
             <text
-              [attr.x]="scaleX(customer.x) + 10"
-              [attr.y]="scaleY(customer.y) + 4"
-              class="map-node__label"
+              [attr.x]="scaleX(depotPoint.x) + 14"
+              [attr.y]="scaleY(depotPoint.y) + 4"
+              class="select-none text-[12px] font-semibold text-slate-700"
             >
-              {{ customer.id }}
+              Depot
             </text>
           </g>
-        </g>
-
-        <g class="map-depot" *ngIf="depot as depotPoint">
-          <circle
-            [attr.cx]="scaleX(depotPoint.x)"
-            [attr.cy]="scaleY(depotPoint.y)"
-            r="12"
-            class="map-node map-node--depot"
-          >
-            <title>Depot • Origin</title>
-          </circle>
-          <text
-            [attr.x]="scaleX(depotPoint.x) + 14"
-            [attr.y]="scaleY(depotPoint.y) + 4"
-            class="map-node__label map-node__label--depot"
-          >
-            Depot
-          </text>
-        </g>
-      </svg>
+        </svg>
+      </div>
+      <ng-template #emptyMap>
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-6 py-8 text-center text-sm text-slate-500">
+          Provide a dataset to visualise routes.
+        </div>
+      </ng-template>
     </div>
   </div>
 </div>

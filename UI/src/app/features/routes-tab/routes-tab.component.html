@@ -1,52 +1,112 @@
-<div class="flex flex-col gap-6">
-  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-    <div
-      *ngFor="let route of routes"
-      class="route-card cursor-pointer border border-transparent transition-all"
-      [class.route-card--dimmed]="!isActive(route)"
-      (mouseenter)="handleHover(route.vehicle)"
-      (mouseleave)="handleHover(null)"
-    >
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="text-xs uppercase tracking-wide text-slate-500">Vehicle {{ route.vehicle }}</div>
-          <div class="text-lg font-semibold text-slate-800">{{ route.distance | number: '1.2-2' }} km</div>
-        </div>
-        <div class="h-10 w-10 rounded-full" [style.background]="route.color || '#3b82f6'"></div>
-      </div>
-      <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <span class="badge">Load {{ route.load }}</span>
-        <span class="badge">Stops {{ route.nodes.length - 2 }}</span>
-      </div>
-      <div class="mt-3 text-xs text-slate-500">
-        Customers: {{ getCustomersLabel(route) || '—' }}
-      </div>
+<div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div class="flex flex-col gap-1">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicle insights</p>
+      <p class="text-sm text-slate-500">Sort and filter to focus on routes that matter most.</p>
+    </div>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <label class="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Sort by
+        <select
+          [(ngModel)]="sortOption"
+          class="min-w-[150px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+        >
+          <option value="vehicle">Vehicle ID</option>
+          <option value="distance">Distance</option>
+          <option value="load">Load</option>
+          <option value="stops">Stops</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Filter
+        <input
+          type="search"
+          [(ngModel)]="filterTerm"
+          placeholder="Search vehicles or customers"
+          class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-500/40"
+        />
+      </label>
+      <label
+        class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 shadow-sm transition disabled:opacity-50"
+      >
+        <input
+          type="checkbox"
+          [(ngModel)]="showOnlyHighlighted"
+          [disabled]="highlightVehicle === null"
+          class="h-4 w-4 rounded border-slate-300 text-slate-600 focus:ring-slate-500"
+        />
+        Highlighted
+      </label>
     </div>
   </div>
 
-  <div class="overflow-auto">
-    <table class="routes-table w-full min-w-[480px]">
-      <thead>
-        <tr>
-          <th scope="col">Vehicle</th>
-          <th scope="col">Distance (km)</th>
-          <th scope="col">Load</th>
-          <th scope="col">Customers</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          *ngFor="let route of routes"
+  <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+    <span class="font-medium text-slate-600">{{ processedRoutes.length }} of {{ routes.length }} vehicles visible</span>
+    <span *ngIf="highlightVehicle !== null" class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+      Highlighting vehicle {{ highlightVehicle }}
+    </span>
+  </div>
+
+  <ng-container *ngIf="processedRoutes.length > 0; else emptyState">
+    <ul class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
+      <li *ngFor="let route of processedRoutes; trackBy: trackByVehicle" role="listitem">
+        <button
+          type="button"
+          class="group flex w-full flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500/40"
           (mouseenter)="handleHover(route.vehicle)"
           (mouseleave)="handleHover(null)"
-          [class.active]="isActive(route)"
+          (focusin)="handleHover(route.vehicle)"
+          (focusout)="handleHover(null)"
+          (click)="selectVehicle(route)"
+          [class.opacity-60]="!isActive(route)"
+          [attr.aria-pressed]="isActive(route)"
+          [attr.aria-label]="'Vehicle ' + route.vehicle + ' with distance ' + (route.distance | number: '1.1-2') + ' kilometres'"
         >
-          <td>{{ route.vehicle }}</td>
-          <td>{{ route.distance | number: '1.2-2' }}</td>
-          <td>{{ route.load }}</td>
-          <td>{{ getCustomersLabel(route) || '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Vehicle {{ route.vehicle }}</span>
+              <span class="text-xl font-semibold text-slate-900">{{ route.distance | number: '1.1-2' }} km</span>
+            </div>
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-600"
+              [style.backgroundColor]="route.color ?? '#94a3b8'"
+            >
+              <span class="sr-only">Route colour</span>
+            </div>
+          </div>
+
+          <div class="grid gap-2 text-xs text-slate-500">
+            <div class="flex items-center justify-between">
+              <span>Load</span>
+              <span class="font-medium text-slate-600">{{ route.load | number: '1.0-0' }}</span>
+            </div>
+            <div class="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                class="h-full rounded-full transition-all duration-300"
+                [ngClass]="getLoadBarClass(route)"
+                [style.width.%]="getLoadPercentage(route)"
+              ></div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Stops</span>
+              <span class="font-medium text-slate-600">{{ getStopsCount(route) }}</span>
+            </div>
+            <div class="flex flex-wrap gap-1">
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-600">Customers</span>
+              <span class="truncate text-xs text-slate-500" [title]="getCustomersLabel(route) || 'No customers'">
+                {{ getCustomersLabel(route) || 'No customers' }}
+              </span>
+            </div>
+          </div>
+        </button>
+      </li>
+    </ul>
+  </ng-container>
+
+  <ng-template #emptyState>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 p-6 text-center text-sm text-slate-500">
+      <p class="font-semibold text-slate-600">No routes to display yet.</p>
+      <p class="mt-1">Run a scenario or adjust filters to see vehicle performance.</p>
+    </div>
+  </ng-template>
 </div>

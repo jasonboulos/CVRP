@@ -48,6 +48,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return this.solverService.getAlgorithms();
   }
 
+  get activeAlgorithmName(): string {
+    const active = this.algorithms.find((item) => item.id === this.config.algorithm);
+    if (active) {
+      return active.name;
+    }
+    return this.config.algorithm.toUpperCase();
+  }
+
   ngOnInit(): void {
     this.datasets = this.mockDataService.getDatasets();
     if (!this.config.datasetId && this.datasets.length > 0) {
