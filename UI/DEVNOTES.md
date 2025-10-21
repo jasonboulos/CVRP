@@ -19,3 +19,14 @@
 ## Map info rail
 - `toggleInfoRail` / `closeInfoRail` drive the drawer behaviour below `1024px`; on larger screens the aside stays open.
 - `persistResult` reopens the drawer after each solve on narrow screens so the latest summary is visible.
+- Feasibility is surfaced as a badge inside the route map header (`formatCapacityStatus` renders the violation sublabel) so the
+  right rail can stay focused on distance, vehicles, capacity, and roster details.
+
+## Result report layout
+- The `ResultReportComponent` now builds a seven-part report (Executive Summary → Performance Summary → Capacity Overview →
+  Compare Runs → Charts → Fleet Overview → Logs).
+- Executive Summary pulls dataset + seed from `rawRequest`, algorithm metadata via the solver service, and renders the
+  feasibility badge with the shared capacity message helper.
+- `comparisonTable` ranks the most recent N runs across distance, runtime, capacity violations, and vehicles used while the
+  charts add a utilization trend. Fleet details are presented in a sticky-header table so vehicle colors and paths align with
+  the map palette.

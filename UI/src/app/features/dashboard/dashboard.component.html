@@ -135,14 +135,49 @@
 
                   <div class="flex h-full min-h-[420px] gap-4 overflow-hidden lg:gap-6">
                     <div class="flex min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                      <app-map-view
-                        class="block h-full w-full flex-1"
-                        [depot]="instance?.depot ?? null"
-                        [customers]="instance?.customers ?? []"
-                        [routes]="routes"
-                        [highlightVehicle]="highlightVehicle"
-                        [utilization]="utilization"
-                      ></app-map-view>
+                      <div class="flex w-full flex-col">
+                        <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                          <div>
+                            <h2 class="text-base font-semibold text-slate-800">
+                              Route Map — Depot and customer layout ({{ getCustomerCountLabel() }})
+                            </h2>
+                            <p class="mt-1 text-xs text-slate-500">
+                              Live scenario inputs with interactive highlighting
+                            </p>
+                          </div>
+                          <ng-container *ngIf="getLastRun(tabsState) as mapRun">
+                            <div class="flex flex-col items-end gap-1 text-right">
+                              <span
+                                class="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-wide"
+                                [ngClass]="{
+                                  'bg-emerald-100 text-emerald-700': mapRun.summary.feasible === true,
+                                  'bg-rose-100 text-rose-700': mapRun.summary.feasible === false,
+                                  'bg-slate-200 text-slate-600': mapRun.summary.feasible === null
+                                }"
+                              >
+                                <ng-container [ngSwitch]="mapRun.summary.feasible">
+                                  <span *ngSwitchCase="true">Feasible</span>
+                                  <span *ngSwitchCase="false">Infeasible</span>
+                                  <span *ngSwitchDefault>Pending</span>
+                                </ng-container>
+                              </span>
+                              <span class="text-xs text-slate-500">
+                                {{ formatCapacityStatus(mapRun.summary.capacityViolations) }}
+                              </span>
+                            </div>
+                          </ng-container>
+                        </div>
+                        <div class="relative flex-1 overflow-hidden">
+                          <app-map-view
+                            class="block h-full w-full flex-1"
+                            [depot]="instance?.depot ?? null"
+                            [customers]="instance?.customers ?? []"
+                            [routes]="routes"
+                            [highlightVehicle]="highlightVehicle"
+                            [utilization]="utilization"
+                          ></app-map-view>
+                        </div>
+                      </div>
                     </div>
 
                     <ng-container *ngIf="getLastRun(tabsState) as lastRun; else infoRailPlaceholder">
@@ -235,28 +270,6 @@
                       <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vehicles used</div>
                       <div class="mt-1 text-xl font-semibold text-slate-900">
                         {{ lastRun.summary.vehiclesUsed }}
-                      </div>
-                    </div>
-                    <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                      <div class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Feasibility</div>
-                      <div class="mt-2 flex items-center gap-2">
-                        <span
-                          class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
-                          [ngClass]="{
-                            'bg-emerald-100 text-emerald-700': lastRun.summary.feasible === true,
-                            'bg-rose-100 text-rose-700': lastRun.summary.feasible === false,
-                            'bg-slate-100 text-slate-600': lastRun.summary.feasible === null
-                          }"
-                        >
-                          <ng-container [ngSwitch]="lastRun.summary.feasible">
-                            <span *ngSwitchCase="true">Feasible</span>
-                            <span *ngSwitchCase="false">Infeasible</span>
-                            <span *ngSwitchDefault>Pending</span>
-                          </ng-container>
-                        </span>
-                        <span class="text-xs text-slate-500">
-                          {{ lastRun.summary.capacityViolations }} capacity violations
-                        </span>
                       </div>
                     </div>
                   </div>

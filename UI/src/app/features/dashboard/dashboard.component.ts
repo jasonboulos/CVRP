@@ -247,6 +247,21 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.dismissToast();
   }
 
+  getCustomerCountLabel(): string {
+    const count = this.instance?.customers?.length ?? 0;
+    const suffix = count === 1 ? 'customer' : 'customers';
+    return `${count} ${suffix}`;
+  }
+
+  formatCapacityStatus(violations: number): string {
+    if (!Number.isFinite(violations)) {
+      return 'Capacity status unavailable';
+    }
+    return violations === 0
+      ? '0 capacity violations'
+      : `${violations} capacity violation${violations === 1 ? '' : 's'}`;
+  }
+
   activateTab(tabId: string): void {
     this.tabsStore.activateTab(tabId);
   }
