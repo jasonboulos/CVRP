@@ -11,5 +11,10 @@
 - The map tab UI consumes `tabsState$` (see `dashboard.component.html`) and switches tab content with `activateTab`, `closeTab`, and keyboard handlers tied to `getOrderedTabIds`.
 
 ## Hover → map highlight
-- The vehicle list inside the map tab (same template) triggers `onHighlightChange` on `mouseenter` / `focus` and `mouseleave` / `blur`.
-- `onHighlightChange` updates `highlightVehicle`, which feeds directly into `<app-map-view>` for live highlighting.
+- The vehicle roster in the map tab calls `setHoverVehicle` on hover/focus and resets on leave/blur so the map dims non-hovered polylines.
+- `toggleVehicleSelection` adds a persistent selection (exposed by `isVehicleSelected`), so clicking a vehicle keeps it highlighted after hover ends; `highlightVehicle` resolves to the hover target first, then the saved selection.
+- Route colors are assigned by `withRouteColors`/`getVehicleColor` so the map and vehicle list always share the same palette.
+
+## Map info rail
+- `toggleInfoRail` / `closeInfoRail` drive the drawer behaviour below `1024px`; on larger screens the aside stays open.
+- `persistResult` reopens the drawer after each solve on narrow screens so the latest summary is visible.

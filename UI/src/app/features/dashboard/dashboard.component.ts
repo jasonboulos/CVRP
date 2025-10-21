@@ -39,9 +39,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   solution: SolveResponse | null = null;
   metrics: DashboardMetrics | null = null;
   instance: ProblemInstance | null = null;
-  highlightVehicle: number | null = null;
+  hoverVehicle: number | null = null;
+  selectedVehicle: number | null = null;
   isSolving = false;
   isHandset = false;
+  isInfoRailDrawer = false;
+  infoRailOpen = true;
   sidebarOpen = true;
   toastMessage: string | null = null;
 
@@ -49,6 +52,23 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   private readonly subscriptions = new Subscription();
   private toastTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private readonly vehicleColorPalette = [
+    '#1f77b4',
+    '#ff7f0e',
+    '#2ca02c',
+    '#d62728',
+    '#9467bd',
+    '#8c564b',
+    '#e377c2',
+    '#7f7f7f',
+    '#bcbd22',
+    '#17becf',
+  ];
+
+  get highlightVehicle(): number | null {
+    return this.hoverVehicle ?? this.selectedVehicle;
+  }
 
   get routes(): RoutePlan[] {
     return this.solution?.routes ?? [];
@@ -106,7 +126,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
     this.solution = null;
     this.metrics = null;
-    this.highlightVehicle = null;
+    this.hoverVehicle = null;
+    this.selectedVehicle = null;
+    if (this.isInfoRailDrawer) {
+      this.infoRailOpen = false;
+    }
     this.tabsStore.reset();
   }
 
@@ -115,6 +139,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.instance = this.mockDataService.createInstance(config.datasetId, config.seed);
     this.solution = null;
     this.metrics = null;
+    this.hoverVehicle = null;
+    this.selectedVehicle = null;
+    if (this.isInfoRailDrawer) {
+      this.infoRailOpen = false;
+    }
   }
 
   async onExport(format: 'json' | 'png'): Promise<void> {
@@ -142,8 +171,63 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.showToast('Map exported as PNG.');
   }
 
-  onHighlightChange(vehicle: number | null): void {
-    this.highlightVehicle = vehicle;
+  setHoverVehicle(vehicle: number | null): void {
+    this.hoverVehicle = vehicle;
+  }
+
+  toggleVehicleSelection(vehicle: number): void {
+    this.selectedVehicle = this.selectedVehicle === vehicle ? null : vehicle;
+  }
+
+  isVehicleSelected(vehicle: number): boolean {
+    return this.selectedVehicle === vehicle;
+  }
+
+  toggleInfoRail(): void {
+    if (!this.isInfoRailDrawer) {
+      return;
+    }
+    this.infoRailOpen = !this.infoRailOpen;
+  }
+
+  closeInfoRail(): void {
+    if (this.isInfoRailDrawer) {
+      this.infoRailOpen = false;
+    }
+  }
+
+  getVehicleColor(vehicle: number): string {
+    const paletteIndex = Math.max(0, vehicle - 1) % this.vehicleColorPalette.length;
+    return this.vehicleColorPalette[paletteIndex];
+  }
+
+  getVehicleCapacity(run: ResultTabData, vehicleId: number): number {
+    const capacity = run.rawRequest.config.vehicles.vehicles.find((item) => item.id === vehicleId)?.capacity;
+    return capacity ?? 0;
+  }
+
+  getVehicleLoadPct(run: ResultTabData, route: RoutePlan): number {
+    const capacity = this.getVehicleCapacity(run, route.vehicle);
+    if (capacity <= 0) {
+      return 0;
+    }
+    const pct = (route.load / capacity) * 100;
+    return Number(Math.min(Math.max(pct, 0), 150).toFixed(1));
+  }
+
+  getVehicleStops(route: RoutePlan): number {
+    if (!route.nodes || route.nodes.length <= 2) {
+      return 0;
+    }
+    return Math.max(route.nodes.length - 2, 0);
+  }
+
+  getVehicleLoadWidthPct(run: ResultTabData, route: RoutePlan): number {
+    return Math.min(this.getVehicleLoadPct(run, route), 100);
+  }
+
+  isVehicleOverCapacity(run: ResultTabData, route: RoutePlan): boolean {
+    return this.getVehicleLoadPct(run, route) > 100;
   }
 
   get utilization(): number {
@@ -224,7 +308,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.instance = this.mockDataService.createInstance(this.config.datasetId, this.config.seed);
       this.solution = null;
       this.metrics = null;
-      this.highlightVehicle = null;
+      this.hoverVehicle = null;
+      this.selectedVehicle = null;
       const solution = await this.solverService.solve(
         this.instance,
         this.config.vehicles,
@@ -232,10 +317,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.config.parameters,
         this.config.seed,
       );
-      this.solution = solution;
-      this.metrics = this.metricsService.computeMetrics(solution);
-      this.highlightVehicle = null;
-      this.persistResult(solution);
+      const coloredSolution = this.withRouteColors(solution);
+      this.solution = coloredSolution;
+      this.metrics = this.metricsService.computeMetrics(coloredSolution);
+      this.hoverVehicle = null;
+      this.selectedVehicle = null;
+      this.persistResult(coloredSolution);
     } catch (error) {
       console.error(error);
       if (this.config.algorithm === 'rl') {
@@ -276,6 +363,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.sidebarOpen = true;
       }
     }
+    const drawer = width < 1024;
+    if (drawer !== this.isInfoRailDrawer) {
+      this.isInfoRailDrawer = drawer;
+      this.infoRailOpen = drawer ? false : true;
+    }
+    if (!drawer) {
+      this.infoRailOpen = true;
+    }
   }
 
   private cloneConfig(config: SolverRunConfig): SolverRunConfig {
@@ -310,6 +405,14 @@ export class DashboardComponent implements OnInit, OnDestroy {
     }, 2200);
   }
 
+  private withRouteColors(solution: SolveResponse): SolveResponse {
+    const routes = solution.routes.map((route) => ({
+      ...route,
+      color: route.color ?? this.getVehicleColor(route.vehicle),
+    }));
+    return { ...solution, routes };
+  }
+
   private persistResult(solution: SolveResponse): void {
     if (!this.instance) {
       return;
@@ -332,6 +435,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
       },
       rawResponse: solution,
     });
+    if (this.isInfoRailDrawer) {
+      this.infoRailOpen = true;
+    }
   }
 
   private buildRunSummary(
