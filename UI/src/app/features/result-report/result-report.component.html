@@ -134,6 +134,7 @@
           <thead class="bg-slate-50">
             <tr class="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th scope="col" class="sticky top-0 z-10 bg-slate-50 px-4 py-3">Run</th>
+              <th scope="col" class="sticky top-0 z-10 bg-slate-50 px-4 py-3">Key params</th>
               <th scope="col" class="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-right" *ngFor="let metric of comparisonMetrics">
                 {{ metric.label }}
                 <span *ngIf="metric.unit" class="text-[11px] font-medium text-slate-400">({{ metric.unit }})</span>
@@ -145,6 +146,11 @@
               <td class="px-4 py-3">
                 <div class="font-semibold text-slate-800">Run #{{ row.run.runNumber }}</div>
                 <div class="text-xs text-slate-500">{{ row.run.algorithm.code }} · {{ row.run.createdAt | date: 'short' }}</div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="text-sm" [ngClass]="row.keyParams ? 'text-slate-700' : 'text-slate-400'">
+                  {{ row.keyParams || '—' }}
+                </div>
               </td>
               <td
                 *ngFor="let value of row.values"
@@ -172,68 +178,199 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 id="charts-section" class="text-lg font-semibold text-slate-800">Charts</h2>
     </div>
-    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
       <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between text-sm text-slate-600">
-          <span class="font-semibold text-slate-700">Distance trend</span>
-          <span>km</span>
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-sm font-semibold text-slate-700">Distance trend</div>
+            <div class="text-xs text-slate-500">Distance (km)</div>
+          </div>
         </div>
-        <svg class="mt-4 h-48 w-full" preserveAspectRatio="none" [attr.viewBox]="chartViewBox" role="img" aria-label="Distance by run">
-          <path
-            *ngIf="distanceTrend.length > 0"
-            [attr.d]="buildLinePath(distanceTrend)"
-            fill="none"
-            stroke="#6366f1"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
-        </svg>
-        <div *ngIf="distanceTrend.length === 0" class="mt-4 text-sm text-slate-500">No run history yet.</div>
-        <div *ngIf="distanceTrend.length > 0" class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-          <span *ngFor="let point of distanceTrend" class="rounded-full bg-white px-2 py-0.5">{{ point.label }}</span>
+        <div class="relative mt-4" (mouseleave)="clearTooltip()">
+          <ng-container *ngIf="distanceChart as chart">
+            <svg
+              class="h-64 w-full"
+              preserveAspectRatio="none"
+              [attr.viewBox]="chart.viewBox"
+              role="img"
+              aria-label="Distance trend by run"
+            >
+              <g stroke="currentColor" stroke-width="1" class="stroke-slate-200" fill="none">
+                <line [attr.x1]="chart.axis.left" [attr.y1]="chart.axis.bottom" [attr.x2]="chart.axis.right" [attr.y2]="chart.axis.bottom"></line>
+                <line [attr.x1]="chart.axis.left" [attr.y1]="chart.axis.top" [attr.x2]="chart.axis.left" [attr.y2]="chart.axis.bottom"></line>
+                <line
+                  *ngFor="let tick of chart.yTicks"
+                  [attr.x1]="chart.axis.left"
+                  [attr.x2]="chart.axis.right"
+                  [attr.y1]="tick.y"
+                  [attr.y2]="tick.y"
+                  class="opacity-50"
+                ></line>
+              </g>
+              <g *ngFor="let tick of chart.yTicks" class="text-[10px] font-medium fill-slate-500">
+                <text
+                  [attr.x]="chart.axis.left - 8"
+                  [attr.y]="tick.y"
+                  text-anchor="end"
+                  dominant-baseline="middle"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+              <g *ngFor="let tick of chart.xTicks" class="text-[10px] font-medium fill-slate-500">
+                <text
+                  [attr.x]="tick.x"
+                  [attr.y]="chart.axis.bottom + 16"
+                  text-anchor="middle"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+              <text
+                class="text-[11px] font-semibold uppercase tracking-wide fill-slate-500"
+                text-anchor="middle"
+                [attr.x]="chart.yLabelPosition.x"
+                [attr.y]="chart.yLabelPosition.y"
+                [attr.transform]="'rotate(-90 ' + chart.yLabelPosition.x + ' ' + chart.yLabelPosition.y + ')'
+                "
+              >
+                {{ chart.yLabel }}
+              </text>
+              <path
+                *ngIf="chart.hasData"
+                [attr.d]="chart.path"
+                fill="none"
+                stroke="#6366f1"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <g *ngIf="chart.hasData">
+                <circle
+                  *ngFor="let point of chart.points"
+                  [attr.cx]="point.x"
+                  [attr.cy]="point.y"
+                  r="4"
+                  class="fill-white stroke-indigo-500"
+                  stroke-width="2"
+                  (mouseenter)="showTooltip('distance', point)"
+                  (focus)="showTooltip('distance', point)"
+                  (mouseleave)="clearTooltip()"
+                  (blur)="clearTooltip()"
+                  [attr.tabindex]="0"
+                  [attr.aria-label]="'Run ' + point.run.runNumber + ' distance ' + point.displayValue + ' kilometers'"
+                ></circle>
+              </g>
+            </svg>
+            <ng-container *ngIf="activeTooltip as tooltip">
+              <div
+                *ngIf="tooltip.chart === 'distance'"
+                class="pointer-events-none absolute rounded-lg bg-slate-900/90 px-3 py-2 text-xs font-medium text-white shadow-lg"
+                [style.left.px]="tooltip.x"
+                [style.top.px]="tooltip.y"
+              >
+                <div *ngFor="let line of tooltip.lines">{{ line }}</div>
+              </div>
+            </ng-container>
+            <div *ngIf="!chart.hasData" class="mt-4 text-sm text-slate-500">No run history yet.</div>
+          </ng-container>
         </div>
       </div>
       <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between text-sm text-slate-600">
-          <span class="font-semibold text-slate-700">Runtime trend</span>
-          <span>seconds</span>
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-sm font-semibold text-slate-700">Runtime trend</div>
+            <div class="text-xs text-slate-500">Runtime (ms)</div>
+          </div>
         </div>
-        <svg class="mt-4 h-48 w-full" preserveAspectRatio="none" [attr.viewBox]="chartViewBox" role="img" aria-label="Runtime by run">
-          <path
-            *ngIf="runtimeTrend.length > 0"
-            [attr.d]="buildLinePath(runtimeTrend)"
-            fill="none"
-            stroke="#22c55e"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
-        </svg>
-        <div *ngIf="runtimeTrend.length === 0" class="mt-4 text-sm text-slate-500">No run history yet.</div>
-        <div *ngIf="runtimeTrend.length > 0" class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-          <span *ngFor="let point of runtimeTrend" class="rounded-full bg-white px-2 py-0.5">{{ point.label }}</span>
-        </div>
-      </div>
-      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-        <div class="flex items-center justify-between text-sm text-slate-600">
-          <span class="font-semibold text-slate-700">Utilization trend</span>
-          <span>%</span>
-        </div>
-        <svg class="mt-4 h-48 w-full" preserveAspectRatio="none" [attr.viewBox]="chartViewBox" role="img" aria-label="Utilization by run">
-          <path
-            *ngIf="utilizationTrend.length > 0"
-            [attr.d]="buildLinePath(utilizationTrend)"
-            fill="none"
-            stroke="#0ea5e9"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
-        </svg>
-        <div *ngIf="utilizationTrend.length === 0" class="mt-4 text-sm text-slate-500">No run history yet.</div>
-        <div *ngIf="utilizationTrend.length > 0" class="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-          <span *ngFor="let point of utilizationTrend" class="rounded-full bg-white px-2 py-0.5">{{ point.label }}</span>
+        <div class="relative mt-4" (mouseleave)="clearTooltip()">
+          <ng-container *ngIf="runtimeChart as chart">
+            <svg
+              class="h-64 w-full"
+              preserveAspectRatio="none"
+              [attr.viewBox]="chart.viewBox"
+              role="img"
+              aria-label="Runtime trend by run"
+            >
+              <g stroke="currentColor" stroke-width="1" class="stroke-slate-200" fill="none">
+                <line [attr.x1]="chart.axis.left" [attr.y1]="chart.axis.bottom" [attr.x2]="chart.axis.right" [attr.y2]="chart.axis.bottom"></line>
+                <line [attr.x1]="chart.axis.left" [attr.y1]="chart.axis.top" [attr.x2]="chart.axis.left" [attr.y2]="chart.axis.bottom"></line>
+                <line
+                  *ngFor="let tick of chart.yTicks"
+                  [attr.x1]="chart.axis.left"
+                  [attr.x2]="chart.axis.right"
+                  [attr.y1]="tick.y"
+                  [attr.y2]="tick.y"
+                  class="opacity-50"
+                ></line>
+              </g>
+              <g *ngFor="let tick of chart.yTicks" class="text-[10px] font-medium fill-slate-500">
+                <text
+                  [attr.x]="chart.axis.left - 8"
+                  [attr.y]="tick.y"
+                  text-anchor="end"
+                  dominant-baseline="middle"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+              <g *ngFor="let tick of chart.xTicks" class="text-[10px] font-medium fill-slate-500">
+                <text
+                  [attr.x]="tick.x"
+                  [attr.y]="chart.axis.bottom + 16"
+                  text-anchor="middle"
+                >
+                  {{ tick.label }}
+                </text>
+              </g>
+              <text
+                class="text-[11px] font-semibold uppercase tracking-wide fill-slate-500"
+                text-anchor="middle"
+                [attr.x]="chart.yLabelPosition.x"
+                [attr.y]="chart.yLabelPosition.y"
+                [attr.transform]="'rotate(-90 ' + chart.yLabelPosition.x + ' ' + chart.yLabelPosition.y + ')'
+                "
+              >
+                {{ chart.yLabel }}
+              </text>
+              <path
+                *ngIf="chart.hasData"
+                [attr.d]="chart.path"
+                fill="none"
+                stroke="#22c55e"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <g *ngIf="chart.hasData">
+                <circle
+                  *ngFor="let point of chart.points"
+                  [attr.cx]="point.x"
+                  [attr.cy]="point.y"
+                  r="4"
+                  class="fill-white stroke-emerald-500"
+                  stroke-width="2"
+                  (mouseenter)="showTooltip('runtime', point)"
+                  (focus)="showTooltip('runtime', point)"
+                  (mouseleave)="clearTooltip()"
+                  (blur)="clearTooltip()"
+                  [attr.tabindex]="0"
+                  [attr.aria-label]="'Run ' + point.run.runNumber + ' runtime ' + point.displayValue + ' milliseconds'"
+                ></circle>
+              </g>
+            </svg>
+            <ng-container *ngIf="activeTooltip as tooltip">
+              <div
+                *ngIf="tooltip.chart === 'runtime'"
+                class="pointer-events-none absolute rounded-lg bg-slate-900/90 px-3 py-2 text-xs font-medium text-white shadow-lg"
+                [style.left.px]="tooltip.x"
+                [style.top.px]="tooltip.y"
+              >
+                <div *ngFor="let line of tooltip.lines">{{ line }}</div>
+              </div>
+            </ng-container>
+            <div *ngIf="!chart.hasData" class="mt-4 text-sm text-slate-500">No run history yet.</div>
+          </ng-container>
         </div>
       </div>
     </div>

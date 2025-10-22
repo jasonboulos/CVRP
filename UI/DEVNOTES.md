@@ -27,6 +27,7 @@
   Compare Runs → Charts → Fleet Overview → Logs).
 - Executive Summary pulls dataset + seed from `rawRequest`, algorithm metadata via the solver service, and renders the
   feasibility badge with the shared capacity message helper.
-- `comparisonTable` ranks the most recent N runs across distance, runtime, capacity violations, and vehicles used while the
-  charts add a utilization trend. Fleet details are presented in a sticky-header table so vehicle colors and paths align with
+- `comparisonTable` ranks the most recent N runs across distance, runtime (ms), capacity violations, and vehicles used while
+  surfacing algorithm key parameters inline per run. The charts track distance (km) and runtime (ms) with shared tooltips that
+  echo the algo + parameter summary. Fleet details are presented in a sticky-header table so vehicle colors and paths align with
   the map palette.

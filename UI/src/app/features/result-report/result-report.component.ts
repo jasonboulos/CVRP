@@ -1,11 +1,6 @@
 import { Component, Input, OnChanges, SimpleChanges, inject } from '@angular/core';
-import { AlgorithmParameterDefinition, ResultTabData } from '../../core/models';
+import { AlgorithmId, AlgorithmParameterDefinition, ResultTabData } from '../../core/models';
 import { SolverAdapterService } from '../../core/services/solver-adapter.service';
-
-interface TrendPoint {
-  label: string;
-  value: number;
-}
 
 interface ComparisonMetric {
   key: string;
@@ -25,6 +20,7 @@ interface ComparisonMetricValue {
 
 interface ComparisonRowData {
   run: ResultTabData;
+  keyParams: string;
   values: ComparisonMetricValue[];
 }
 
@@ -33,6 +29,60 @@ interface ParameterEntry {
   label: string;
   displayValue: string;
   rawValue: number;
+}
+
+type ChartType = 'distance' | 'runtime';
+
+interface TrendPoint {
+  label: string;
+  value: number;
+  run: ResultTabData;
+}
+
+interface ChartTick {
+  value: number;
+  label: string;
+  y: number;
+}
+
+interface ChartXAxisTick {
+  label: string;
+  x: number;
+}
+
+interface ChartPoint extends TrendPoint {
+  x: number;
+  y: number;
+  displayValue: string;
+  keyParams: string;
+}
+
+interface ChartData {
+  unit: string;
+  yLabel: string;
+  viewBox: string;
+  path: string;
+  yTicks: ChartTick[];
+  xTicks: ChartXAxisTick[];
+  points: ChartPoint[];
+  hasData: boolean;
+  axis: {
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+  };
+  yLabelPosition: {
+    x: number;
+    y: number;
+  };
+}
+
+interface ChartTooltip {
+  chart: ChartType;
+  x: number;
+  y: number;
+  lines: string[];
 }
 
 @Component({
@@ -51,9 +101,9 @@ export class ResultReportComponent implements OnChanges {
 
   sortedRuns: ResultTabData[] = [];
 
-  distanceTrend: TrendPoint[] = [];
-  runtimeTrend: TrendPoint[] = [];
-  utilizationTrend: TrendPoint[] = [];
+  distanceChart: ChartData | null = null;
+  runtimeChart: ChartData | null = null;
+  activeTooltip: ChartTooltip | null = null;
 
   readonly comparisonMetrics: ComparisonMetric[] = [
     {
@@ -66,9 +116,9 @@ export class ResultReportComponent implements OnChanges {
     {
       key: 'runtimeMs',
       label: 'Runtime',
-      unit: 's',
+      unit: 'ms',
       betterWhen: 'lower',
-      accessor: (run) => run.summary.runtimeMs / 1000,
+      accessor: (run) => run.summary.runtimeMs,
     },
     {
       key: 'capacityViolations',
@@ -100,22 +150,24 @@ export class ResultReportComponent implements OnChanges {
     }
 
     this.sortedRuns = [...this.runs].sort((a, b) => a.runNumber - b.runNumber);
+    this.activeTooltip = null;
     this.datasetId = this.result.rawRequest.config.datasetId;
     this.datasetName = this.result.rawRequest.instance.name || this.datasetId;
     this.parameterEntries = this.buildParameterEntries(this.result);
 
-    this.distanceTrend = this.sortedRuns.map((run) => ({
+    const trendPoints = this.sortedRuns.map((run) => ({
       label: `#${run.runNumber}`,
       value: run.summary.totalDistance,
+      run,
     }));
-    this.runtimeTrend = this.sortedRuns.map((run) => ({
+    const runtimePoints = this.sortedRuns.map((run) => ({
       label: `#${run.runNumber}`,
-      value: run.summary.runtimeMs / 1000,
+      value: run.summary.runtimeMs,
+      run,
     }));
-    this.utilizationTrend = this.sortedRuns.map((run) => ({
-      label: `#${run.runNumber}`,
-      value: run.summary.utilizationPct,
-    }));
+
+    this.distanceChart = this.buildChartData('Distance (km)', 'km', trendPoints);
+    this.runtimeChart = this.buildChartData('Runtime (ms)', 'ms', runtimePoints);
 
     this.updateCompareWindowOptions();
     this.rebuildComparisonTable();
@@ -126,10 +178,6 @@ export class ResultReportComponent implements OnChanges {
       return 0;
     }
     return Math.min(this.compareWindow, this.sortedRuns.length);
-  }
-
-  get chartViewBox(): string {
-    return `0 0 ${this.chartWidth} ${this.chartHeight}`;
   }
 
   onCompareWindowChange(event: Event): void {
@@ -162,27 +210,110 @@ export class ResultReportComponent implements OnChanges {
       : `${violations} capacity violation${violations === 1 ? '' : 's'}`;
   }
 
-  buildLinePath(points: TrendPoint[]): string {
-    if (!points.length) {
-      return '';
+  showTooltip(chart: ChartType, point: ChartPoint): void {
+    const offsetX = 12;
+    const offsetY = 36;
+    const left = Math.min(this.chartWidth - 140, Math.max(0, point.x + offsetX));
+    const top = Math.max(0, point.y - offsetY);
+    const lines = [
+      `Run #${point.run.runNumber} — ${point.run.algorithm.code}`,
+      `${point.displayValue} ${chart === 'distance' ? 'km' : 'ms'}`,
+    ];
+    if (point.keyParams) {
+      lines.push(point.keyParams);
     }
-    if (points.length === 1) {
-      const midY = this.chartHeight / 2;
-      return `M 0 ${midY} L ${this.chartWidth} ${midY}`;
-    }
-    const values = points.map((point) => point.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
+    this.activeTooltip = { chart, x: left, y: top, lines };
+  }
 
-    return points
-      .map((point, index) => {
-        const x = (index / (points.length - 1)) * this.chartWidth;
-        const normalized = (point.value - min) / range;
-        const y = this.chartHeight - normalized * this.chartHeight;
-        return `${index === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-      })
+  clearTooltip(): void {
+    this.activeTooltip = null;
+  }
+
+  private buildChartData(
+    yLabel: string,
+    unit: string,
+    points: TrendPoint[],
+  ): ChartData {
+    const hasData = points.length > 0;
+    const axis = {
+      left: this.chartMargin.left,
+      right: this.chartWidth - this.chartMargin.right,
+      top: this.chartMargin.top,
+      bottom: this.chartHeight - this.chartMargin.bottom,
+    };
+    const yLabelPosition = {
+      x: Math.max(0, this.chartMargin.left - 44),
+      y: (axis.top + axis.bottom) / 2,
+    };
+    if (!hasData) {
+      return {
+        unit,
+        yLabel,
+        viewBox: `0 0 ${this.chartWidth} ${this.chartHeight}`,
+        path: '',
+        yTicks: [],
+        xTicks: [],
+        points: [],
+        hasData: false,
+        axis,
+        yLabelPosition,
+      };
+    }
+
+    const values = points.map((point) => point.value);
+    const ticks = this.computeTicks(values);
+    const yMin = ticks[0] ?? 0;
+    const yMax = ticks[ticks.length - 1] ?? yMin + 1;
+    const range = yMax - yMin || 1;
+
+    const pathPoints: ChartPoint[] = points.map((point, index) => {
+      const x =
+        this.chartMargin.left +
+        (points.length === 1
+          ? this.plotWidth / 2
+          : (index / (points.length - 1)) * this.plotWidth);
+      const normalized = (point.value - yMin) / range;
+      const y = this.chartMargin.top + (1 - normalized) * this.plotHeight;
+      return {
+        ...point,
+        x,
+        y,
+        displayValue: this.formatChartValue(point.value, unit),
+        keyParams: this.formatKeyParams(point.run),
+      };
+    });
+
+    const path = pathPoints
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
       .join(' ');
+
+    const yTicks = ticks.map((tick) => {
+      const normalized = (tick - yMin) / range;
+      const y = this.chartMargin.top + (1 - normalized) * this.plotHeight;
+      return {
+        value: tick,
+        label: this.formatTickLabel(tick, unit),
+        y,
+      };
+    });
+
+    const xTicks = pathPoints.map((point) => ({
+      label: point.label,
+      x: point.x,
+    }));
+
+    return {
+      unit,
+      yLabel,
+      viewBox: `0 0 ${this.chartWidth} ${this.chartHeight}`,
+      path,
+      yTicks,
+      xTicks,
+      points: pathPoints,
+      hasData: true,
+      axis,
+      yLabelPosition,
+    };
   }
 
   formatNode(node: number): string {
@@ -213,12 +344,21 @@ export class ResultReportComponent implements OnChanges {
 
   private readonly chartWidth = 520;
   private readonly chartHeight = 200;
+  private readonly chartMargin = { top: 16, right: 24, bottom: 40, left: 64 };
+
+  private get plotWidth(): number {
+    return this.chartWidth - this.chartMargin.left - this.chartMargin.right;
+  }
+
+  private get plotHeight(): number {
+    return this.chartHeight - this.chartMargin.top - this.chartMargin.bottom;
+  }
 
   private resetView(): void {
     this.sortedRuns = [];
-    this.distanceTrend = [];
-    this.runtimeTrend = [];
-    this.utilizationTrend = [];
+    this.distanceChart = null;
+    this.runtimeChart = null;
+    this.activeTooltip = null;
     this.parameterEntries = [];
     this.comparisonTable = [];
     this.compareWindowOptions = [];
@@ -258,6 +398,7 @@ export class ResultReportComponent implements OnChanges {
       .reverse()
       .map((run) => ({
         run,
+        keyParams: this.formatKeyParams(run),
         values: this.comparisonMetrics.map((metric) => {
           const value = metric.accessor(run);
           const ranks = rankMaps.get(metric.key);
@@ -377,10 +518,16 @@ export class ResultReportComponent implements OnChanges {
     if (!Number.isFinite(value)) {
       return '—';
     }
-    if (metric.unit === 'km' || metric.unit === 's') {
+    if (metric.unit === 'km') {
       const formatter = new Intl.NumberFormat(undefined, {
         minimumFractionDigits: 1,
         maximumFractionDigits: 1,
+      });
+      return formatter.format(value);
+    }
+    if (metric.unit === 'ms') {
+      const formatter = new Intl.NumberFormat(undefined, {
+        maximumFractionDigits: 0,
       });
       return formatter.format(value);
     }
@@ -388,5 +535,124 @@ export class ResultReportComponent implements OnChanges {
       maximumFractionDigits: 0,
     });
     return formatter.format(value);
+  }
+
+  private computeTicks(values: number[]): number[] {
+    if (!values.length) {
+      return [0, 1];
+    }
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      return [0, 1];
+    }
+    if (min === max) {
+      const padding = Math.abs(min) * 0.1 || 1;
+      min -= padding;
+      max += padding;
+    }
+    const span = max - min;
+    const step = this.niceStep(span / 4);
+    const niceMin = Math.floor(min / step) * step;
+    const niceMax = Math.ceil(max / step) * step;
+    const ticks: number[] = [];
+    for (let value = niceMin; value <= niceMax + step / 2; value += step) {
+      const rounded = Number.parseFloat(value.toFixed(6));
+      ticks.push(rounded);
+    }
+    if (ticks.length < 2) {
+      ticks.push(Number.parseFloat((niceMax + step).toFixed(6)));
+    }
+    return ticks;
+  }
+
+  private niceStep(value: number): number {
+    const safeValue = value <= 0 ? 1 : value;
+    const exponent = Math.floor(Math.log10(safeValue));
+    const fraction = safeValue / Math.pow(10, exponent);
+    let niceFraction: number;
+    if (fraction <= 1) {
+      niceFraction = 1;
+    } else if (fraction <= 2) {
+      niceFraction = 2;
+    } else if (fraction <= 5) {
+      niceFraction = 5;
+    } else {
+      niceFraction = 10;
+    }
+    return niceFraction * Math.pow(10, exponent);
+  }
+
+  private formatTickLabel(value: number, unit: string): string {
+    if (!Number.isFinite(value)) {
+      return '—';
+    }
+    if (unit === 'km') {
+      return new Intl.NumberFormat(undefined, {
+        maximumFractionDigits: 1,
+      }).format(value);
+    }
+    return new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  private formatChartValue(value: number, unit: string): string {
+    if (!Number.isFinite(value)) {
+      return '—';
+    }
+    if (unit === 'km') {
+      return new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(value);
+    }
+    return new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
+
+  private formatKeyParams(run: ResultTabData): string {
+    const parameters = run.rawRequest.config.parameters ?? {};
+    const definitions = this.solverService.getAlgorithmParameters(run.algorithm.id) ?? [];
+    const preferredKeys = this.getKeyParameterKeys(run.algorithm.id);
+    const entries: string[] = [];
+
+    const appendEntry = (key: string) => {
+      if (!Object.prototype.hasOwnProperty.call(parameters, key)) {
+        return;
+      }
+      const definition = definitions.find((item) => item.key === key) ?? null;
+      const value = parameters[key]!;
+      const label = definition?.label ?? this.fallbackParameterLabel(key);
+      entries.push(`${label}: ${this.formatParameterValue(definition, value)}`);
+    };
+
+    preferredKeys.forEach(appendEntry);
+
+    if (!entries.length) {
+      definitions.slice(0, 2).forEach((definition) => appendEntry(definition.key));
+    }
+
+    if (!entries.length) {
+      Object.keys(parameters)
+        .slice(0, 2)
+        .forEach(appendEntry);
+    }
+
+    return entries.join(' · ');
+  }
+
+  private getKeyParameterKeys(algorithm: AlgorithmId): string[] {
+    switch (algorithm) {
+      case 'rl':
+        return ['episodes', 'gamma'];
+      case 'ga':
+        return ['population', 'mutation', 'elitism'];
+      case 'tabu':
+        return ['iterations', 'tabuTenure', 'aspiration'];
+      default:
+        return [];
+    }
   }
 }
