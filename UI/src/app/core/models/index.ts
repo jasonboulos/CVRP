@@ -100,3 +100,40 @@ export interface DashboardMetrics {
   runtimeMs: number;
   feasible: boolean | null;
 }
+
+export interface RunResultSummary {
+  totalDistance: number;
+  vehiclesUsed: number;
+  runtimeMs: number;
+  feasible: boolean | null;
+  capacityViolations: number;
+  totalDemand: number;
+  fleetCapacity: number;
+  utilizationPct: number;
+}
+
+export interface RunAlgorithmInfo {
+  id: AlgorithmId;
+  name: string;
+  code: string;
+}
+
+export interface ResultTabData {
+  id: string;
+  title: string;
+  runNumber: number;
+  createdAt: number;
+  algorithm: RunAlgorithmInfo;
+  summary: RunResultSummary;
+  vehicles: RoutePlan[];
+  customers: Customer[];
+  geometry: {
+    depot: Depot;
+    routes: RoutePlan[];
+  };
+  rawRequest: {
+    config: SolverRunConfig;
+    instance: ProblemInstance;
+  };
+  rawResponse: SolveResponse;
+}
