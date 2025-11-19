@@ -107,12 +107,20 @@ export class SolverAdapterService {
   ): Promise<SolveResponse> {
     if (algorithm === 'rl') {
       console.log('Solving with backend RL service...');
-      return this.solveWithBackend(instance, vehicles, parameters, seed);
+      return this.solveWithBackendRl(instance, vehicles, parameters, seed);
     }
+
+    if (algorithm === 'ga') {
+      console.log('Solving with backend GA service...');
+      return this.solveWithBackendGa(instance, vehicles, parameters, seed);
+    }
+
     console.log('Solving with local mock solver...');
     console.log(algorithm);
     return this.solveWithMock(instance, vehicles, algorithm, parameters, seed);
   }
+
+  // ---------------- MOQUE : TABU / SA / ACO ----------------
 
   private async solveWithMock(
     instance: ProblemInstance,
@@ -165,13 +173,16 @@ export class SolverAdapterService {
     });
   }
 
-  private async solveWithBackend(
+  // ---------------- BACKEND RL ----------------
+
+  private async solveWithBackendRl(
     instance: ProblemInstance,
     vehicles: VehiclesConfig,
     parameters: Record<string, number>,
     seed: string,
   ): Promise<SolveResponse> {
     const vehicleCount = this.getVehicleCount(vehicles);
+
     const payload = {
       instance: {
         id: instance.id,
@@ -213,6 +224,57 @@ export class SolverAdapterService {
       gap: undefined,
     };
   }
+
+  // ---------------- BACKEND GA ----------------
+
+  private async solveWithBackendGa(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+
+    const payload = {
+      instance: {
+        id: instance.id,
+        depot: instance.depot,
+        customers: instance.customers,
+        vehicles: {
+          vehicles: vehicles.vehicles.map((vehicle, index) => ({
+            id: vehicle.id ?? index + 1,
+            capacity: Math.max(1, Math.round(vehicle.capacity)),
+          })),
+        },
+      },
+      params: {
+        populationSize: Math.round(parameters['population'] ?? 60),
+        generations: Math.round(parameters['generations'] ?? 200), // si tu ajoutes un slider plus tard
+        mutationRate: (parameters['mutation'] ?? 8) / 100,
+        seed,
+      },
+    };
+
+    const url = `${environment.apiBaseUrl}/api/ga/solve`;
+    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    console.log('GA Solve Response:', response);
+    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
+
+    return {
+      distance: Number(response.distance.toFixed(2)),
+      runtimeMs: response.runtimeMs,
+      feasible: response.feasible,
+      vehiclesUsed: response.vehiclesUsed,
+      routes: coloredRoutes,
+      violations: response.violations,
+      log: response.log,
+      convergence: undefined,
+      runtimeBreakdown: undefined,
+      gap: undefined,
+    };
+  }
+
+  // ---------------- UTILITAIRES EXISTANTS ----------------
 
   private buildRoutes({ instance, vehicles, rngSeed }: BuildRoutesOptions): {
     routes: RoutePlan[];

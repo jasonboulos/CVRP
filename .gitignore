@@ -1,16 +1,22 @@
-printf "%s\n" \
-"# Java / Maven" \
-"backend/target/" \
-"*.class" \
-"" \
-"# Angular" \
-"UI/dist/" \
-"UI/node_modules/" \
-"UI/.angular/cache/" \
-"" \
-"# IDE/OS" \
-".idea/" \
-".vscode/" \
-".DS_Store" \
-"Thumbs.db" > .gitignore
-git add .gitignore
+# Java / Maven
+backend/target/
+*.class
+
+# Angular
+UI/dist/
+UI/node_modules/
+UI/.angular/cache/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Python backend
+py-backend/.venv/
+py-backend/__pycache__/
+__pycache__/
+
+# Documents
+*.docx
