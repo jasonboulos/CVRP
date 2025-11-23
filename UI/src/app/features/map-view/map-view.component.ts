@@ -20,6 +20,7 @@ export class MapViewComponent {
   @Input() customers: Customer[] = [];
   @Input() routes: RoutePlan[] = [];
   @Input() highlightVehicle: number | null = null;
+  @Input() highlightVehicles: number[] = [];
   @Input() utilization = 0;
 
   readonly width = 1000;
@@ -65,28 +66,32 @@ export class MapViewComponent {
   }
 
   isRouteDimmed(route: RoutePlan): boolean {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return false;
     }
-    return route.vehicle !== this.highlightVehicle;
+    return !activeVehicles.has(route.vehicle);
   }
 
   isRouteHighlighted(route: RoutePlan): boolean {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return false;
     }
-    return route.vehicle === this.highlightVehicle;
+    return activeVehicles.has(route.vehicle);
   }
 
   getRouteStrokeOpacity(route: RoutePlan): number {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return 0.45;
     }
-    return route.vehicle === this.highlightVehicle ? 0.95 : 0.15;
+    return activeVehicles.has(route.vehicle) ? 0.95 : 0.25;
   }
 
   getRouteStrokeWidth(route: RoutePlan): number {
-    if (this.highlightVehicle !== null && route.vehicle === this.highlightVehicle) {
+    const activeVehicles = this.getActiveVehicles();
+    if (activeVehicles && activeVehicles.has(route.vehicle)) {
       return 5;
     }
     return 3.5;
@@ -96,7 +101,8 @@ export class MapViewComponent {
     if (!this.depot || route.nodes.length < 2) {
       return [];
     }
-    if (this.highlightVehicle !== null && route.vehicle !== this.highlightVehicle) {
+    const activeVehicles = this.getActiveVehicles();
+    if (activeVehicles && !activeVehicles.has(route.vehicle)) {
       return [];
     }
 
@@ -140,5 +146,15 @@ export class MapViewComponent {
     }
     const customer = this.customers.find((item) => item.id === nodeId);
     return customer ? `Customer ${customer.id}` : `Node ${nodeId}`;
+  }
+
+  private getActiveVehicles(): Set<number> | null {
+    if (this.highlightVehicles?.length) {
+      return new Set(this.highlightVehicles);
+    }
+    if (this.highlightVehicle !== null) {
+      return new Set([this.highlightVehicle]);
+    }
+    return null;
   }
 }

@@ -376,6 +376,34 @@
     </div>
   </section>
 
+  <section
+    aria-labelledby="routes-map"
+    class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-4"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 id="routes-map" class="text-lg font-semibold text-slate-800">
+          Routes map — Result #{{ result.runNumber }} [{{ result.algorithm.code }}]
+        </h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Hover, focus, or select a vehicle below to highlight its route. Selections stay active until cleared.
+        </p>
+      </div>
+      <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {{ result.geometry.routes.length }} routes mapped
+      </div>
+    </div>
+    <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
+      <app-map-view
+        class="block h-[420px] w-full lg:h-[520px]"
+        [depot]="result.geometry.depot"
+        [customers]="result.customers"
+        [routes]="result.vehicles"
+        [highlightVehicles]="activeHighlightVehicles"
+      ></app-map-view>
+    </div>
+  </section>
+
   <section aria-labelledby="fleet-overview" class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 id="fleet-overview" class="text-lg font-semibold text-slate-800">Fleet Overview</h2>
@@ -394,7 +422,22 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 bg-white">
-          <tr *ngFor="let route of result.vehicles; trackBy: trackVehicle" class="align-top">
+          <tr
+            *ngFor="let route of result.vehicles; trackBy: trackVehicle"
+            class="align-top border-l-4 border-transparent transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500"
+            [class.bg-indigo-50]="isVehicleSelected(route.vehicle)"
+            [class.opacity-60]="isVehicleDimmed(route.vehicle)"
+            [class.border-indigo-400]="isVehicleSelected(route.vehicle)"
+            tabindex="0"
+            role="row"
+            (mouseenter)="handleVehicleFocus(route.vehicle)"
+            (mouseleave)="handleVehicleFocus(null)"
+            (focus)="handleVehicleFocus(route.vehicle)"
+            (blur)="handleVehicleFocus(null)"
+            (click)="handleVehicleClick($event, route.vehicle)"
+            (keydown)="handleVehicleKey($event, route.vehicle)"
+            [attr.aria-pressed]="isVehicleSelected(route.vehicle)"
+          >
             <td class="px-4 py-3">
               <div class="flex items-center gap-3">
                 <span class="h-3 w-3 rounded-full" [style.backgroundColor]="getVehicleColor(route)" aria-hidden="true"></span>
@@ -402,6 +445,12 @@
                   <div class="font-semibold text-slate-800">Vehicle {{ route.vehicle }}</div>
                   <div class="text-xs text-slate-500">Route length {{ route.nodes.length }} nodes</div>
                 </div>
+                <span
+                  *ngIf="isVehicleSelected(route.vehicle)"
+                  class="ml-auto inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-indigo-700"
+                >
+                  Selected
+                </span>
               </div>
             </td>
             <td class="px-4 py-3">{{ getStops(route) }}</td>

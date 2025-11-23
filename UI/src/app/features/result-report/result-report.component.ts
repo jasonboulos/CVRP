@@ -104,6 +104,8 @@ export class ResultReportComponent implements OnChanges {
   distanceChart: ChartData | null = null;
   runtimeChart: ChartData | null = null;
   activeTooltip: ChartTooltip | null = null;
+  hoveredVehicle: number | null = null;
+  selectedVehicles = new Set<number>();
 
   readonly comparisonMetrics: ComparisonMetric[] = [
     {
@@ -154,6 +156,8 @@ export class ResultReportComponent implements OnChanges {
     this.datasetId = this.result.rawRequest.config.datasetId;
     this.datasetName = this.result.rawRequest.instance.name || this.datasetId;
     this.parameterEntries = this.buildParameterEntries(this.result);
+    this.hoveredVehicle = null;
+    this.selectedVehicles = new Set<number>();
 
     const trendPoints = this.sortedRuns.map((run) => ({
       label: `#${run.runNumber}`,
@@ -332,6 +336,52 @@ export class ResultReportComponent implements OnChanges {
 
   getVehicleColor(route: ResultTabData['vehicles'][number]): string {
     return route.color ?? '#475569';
+  }
+
+  get activeHighlightVehicles(): number[] {
+    const vehicles = new Set(this.selectedVehicles);
+    if (this.hoveredVehicle !== null) {
+      vehicles.add(this.hoveredVehicle);
+    }
+    return Array.from(vehicles.values());
+  }
+
+  isVehicleSelected(vehicleId: number): boolean {
+    return this.selectedVehicles.has(vehicleId);
+  }
+
+  isVehicleDimmed(vehicleId: number): boolean {
+    const active = new Set(this.activeHighlightVehicles);
+    if (active.size === 0) {
+      return false;
+    }
+    return !active.has(vehicleId);
+  }
+
+  toggleVehicleSelection(vehicleId: number): void {
+    const next = new Set(this.selectedVehicles);
+    if (next.has(vehicleId)) {
+      next.delete(vehicleId);
+    } else {
+      next.add(vehicleId);
+    }
+    this.selectedVehicles = next;
+  }
+
+  handleVehicleFocus(vehicleId: number | null): void {
+    this.hoveredVehicle = vehicleId;
+  }
+
+  handleVehicleClick(event: Event, vehicleId: number): void {
+    event.preventDefault();
+    this.toggleVehicleSelection(vehicleId);
+  }
+
+  handleVehicleKey(event: KeyboardEvent, vehicleId: number): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.toggleVehicleSelection(vehicleId);
+    }
   }
 
   getStops(route: ResultTabData['vehicles'][number]): number {
