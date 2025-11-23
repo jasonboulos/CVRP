@@ -376,31 +376,32 @@
     </div>
   </section>
 
-  <section
-    aria-labelledby="routes-map"
-    class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-4"
-  >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h2 id="routes-map" class="text-lg font-semibold text-slate-800">
-          Routes map — Result #{{ result.runNumber }} [{{ result.algorithm.code }}]
-        </h2>
-        <p class="mt-1 text-sm text-slate-500">
-          Hover, focus, or select a vehicle below to highlight its route. Selections stay active until cleared.
-        </p>
+  <section aria-labelledby="routes-map" class="lg:sticky lg:top-4">
+    <div class="flex min-h-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <div>
+          <h2 id="routes-map" class="text-base font-semibold text-slate-800">
+            Routes map — Result #{{ result.runNumber }} [{{ result.algorithm.code }}]
+          </h2>
+          <p class="mt-1 text-xs text-slate-500">
+            Hover, focus, or select a vehicle below to highlight its route. Selections stay active until cleared.
+          </p>
+        </div>
+        <div class="flex flex-col items-end gap-1 text-right">
+          <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {{ result.geometry.routes.length }} routes mapped
+          </div>
+        </div>
       </div>
-      <div class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {{ result.geometry.routes.length }} routes mapped
+      <div class="relative flex-1 overflow-hidden">
+        <app-map-view
+          class="block h-full w-full flex-1"
+          [depot]="result.geometry.depot"
+          [customers]="result.customers"
+          [routes]="result.vehicles"
+          [highlightVehicles]="activeHighlightVehicles"
+        ></app-map-view>
       </div>
-    </div>
-    <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-inner">
-      <app-map-view
-        class="block h-[420px] w-full lg:h-[520px]"
-        [depot]="result.geometry.depot"
-        [customers]="result.customers"
-        [routes]="result.vehicles"
-        [highlightVehicles]="activeHighlightVehicles"
-      ></app-map-view>
     </div>
   </section>
 
