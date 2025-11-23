@@ -26,6 +26,37 @@ export class MapViewComponent {
   readonly width = 1000;
   readonly height = 600;
 
+  private getBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    const points: { x: number; y: number }[] = [];
+    if (this.depot) {
+      points.push({ x: this.depot.x, y: this.depot.y });
+    }
+    if (this.customers?.length) {
+      points.push(...this.customers.map((customer) => ({ x: customer.x, y: customer.y })));
+    }
+
+    if (!points.length) {
+      return { minX: 0, maxX: 100, minY: 0, maxY: 100 };
+    }
+
+    const minX = Math.min(...points.map((p) => p.x));
+    const maxX = Math.max(...points.map((p) => p.x));
+    const minY = Math.min(...points.map((p) => p.y));
+    const maxY = Math.max(...points.map((p) => p.y));
+
+    const rangeX = Math.max(maxX - minX, 8);
+    const rangeY = Math.max(maxY - minY, 8);
+    const paddingX = Math.max(rangeX * 0.1, 4);
+    const paddingY = Math.max(rangeY * 0.1, 4);
+
+    return {
+      minX: minX - paddingX,
+      maxX: maxX + paddingX,
+      minY: minY - paddingY,
+      maxY: maxY + paddingY,
+    };
+  }
+
   trackByRoute(_: number, route: RoutePlan): number {
     return route.vehicle;
   }
@@ -58,11 +89,13 @@ export class MapViewComponent {
   }
 
   scaleX(value: number): number {
-    return Number(((value / 100) * this.width).toFixed(2));
+    const { minX, maxX } = this.getBounds();
+    return Number((((value - minX) / (maxX - minX)) * this.width).toFixed(2));
   }
 
   scaleY(value: number): number {
-    return Number(((1 - value / 100) * this.height).toFixed(2));
+    const { minY, maxY } = this.getBounds();
+    return Number((((1 - (value - minY) / (maxY - minY)) * this.height)).toFixed(2));
   }
 
   isRouteDimmed(route: RoutePlan): boolean {
@@ -92,9 +125,9 @@ export class MapViewComponent {
   getRouteStrokeWidth(route: RoutePlan): number {
     const activeVehicles = this.getActiveVehicles();
     if (activeVehicles && activeVehicles.has(route.vehicle)) {
-      return 5;
+      return 4;
     }
-    return 3.5;
+    return 2.75;
   }
 
   getRouteSegments(route: RoutePlan): RouteSegment[] {

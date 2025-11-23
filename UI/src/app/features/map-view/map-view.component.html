@@ -50,7 +50,7 @@
             <circle
               [attr.cx]="scaleX(customer.x)"
               [attr.cy]="scaleY(customer.y)"
-              r="6"
+              r="4.5"
               class="map-node map-node--customer"
             >
               <title>
@@ -58,8 +58,8 @@
               </title>
             </circle>
             <text
-              [attr.x]="scaleX(customer.x) + 10"
-              [attr.y]="scaleY(customer.y) + 4"
+              [attr.x]="scaleX(customer.x) + 8"
+              [attr.y]="scaleY(customer.y) + 3"
               class="map-node__label"
             >
               {{ customer.id }}
@@ -71,14 +71,14 @@
           <circle
             [attr.cx]="scaleX(depotPoint.x)"
             [attr.cy]="scaleY(depotPoint.y)"
-            r="12"
+            r="10"
             class="map-node map-node--depot"
           >
             <title>Depot • Origin</title>
           </circle>
           <text
-            [attr.x]="scaleX(depotPoint.x) + 14"
-            [attr.y]="scaleY(depotPoint.y) + 4"
+            [attr.x]="scaleX(depotPoint.x) + 12"
+            [attr.y]="scaleY(depotPoint.y) + 3"
             class="map-node__label map-node__label--depot"
           >
             Depot
