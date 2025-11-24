@@ -5,13 +5,13 @@
       <p class="text-xs uppercase tracking-wide text-slate-500">Configure the CVRP run</p>
     </div>
     <button
-      *ngIf="showPanelToggle"
       type="button"
-      class="btn-secondary shrink-0 px-2 py-1 text-xs"
+      class="btn-secondary inline-flex shrink-0 items-center gap-1 px-3 py-2 text-xs"
       (click)="togglePanel.emit()"
       aria-label="Close controls panel"
     >
-      Hide panel
+      ✕
+      <span>Hide panel</span>
     </button>
   </header>
 

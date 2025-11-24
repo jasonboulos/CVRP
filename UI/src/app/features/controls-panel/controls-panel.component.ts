@@ -38,7 +38,6 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   @Input() algorithms: AlgorithmSummary[] = [];
   @Input() config!: SolverRunConfig;
   @Input() solving = false;
-  @Input() showPanelToggle = false;
 
   @Output() run = new EventEmitter<SolverRunConfig>();
   @Output() reset = new EventEmitter<void>();
