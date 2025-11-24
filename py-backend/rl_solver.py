@@ -61,6 +61,16 @@ def run_episode(
     Un épisode = on sert tous les clients (si possible) en utilisant les véhicules,
     en suivant une politique epsilon-greedy sur la Q-table.
     """
+    # Keep distance as the baseline cost so shorter legs are preferred.
+    STEP_DISTANCE_SCALE = 1.0
+    # Heavily penalize coming back with remaining capacity while clients wait (stronger than a typical 20–40 km leg).
+    EARLY_RETURN_PENALTY = 75.0
+    # Starting a new vehicle should feel worse than driving several normal legs, encouraging compact routes.
+    NEW_VEHICLE_PENALTY = 200.0
+    # Leaving even one customer unserved should dominate distance considerations.
+    UNSERVED_CUSTOMER_PENALTY = 750.0
+    # Strongly reward serving everyone to offset the added penalties and push toward full coverage.
+    FULL_SERVICE_BONUS = 1500.0
     n_cust = len(customers)
     remaining_customers = set(range(1, n_cust + 1))  # indices 1..N
     routes: List[EpisodeRoute] = []
@@ -156,7 +166,9 @@ def run_episode(
         if action == 0:
             # Retour au dépôt, on ferme la route
             d = dist[current_idx][0]
-            reward = -d
+            reward = -STEP_DISTANCE_SCALE * d
+            if remaining_capacity > 0 and remaining_customers:
+                reward -= EARLY_RETURN_PENALTY
             current_route_dist += d
             total_distance += d
             current_route_nodes.append(0)
@@ -171,6 +183,8 @@ def run_episode(
             )
 
             vehicle_idx += 1
+            if vehicle_idx < len(vehicles) and remaining_customers:
+                reward -= NEW_VEHICLE_PENALTY
             if vehicle_idx >= len(vehicles) or not remaining_customers:
                 next_state = None  # terminal
             else:
@@ -189,7 +203,7 @@ def run_episode(
             # Aller chez un client
             ci = action
             d = dist[current_idx][ci]
-            reward = -d
+            reward = -STEP_DISTANCE_SCALE * d
             current_route_dist += d
             total_distance += d
             current_route_nodes.append(ci)
@@ -210,7 +224,11 @@ def run_episode(
         old_q = qs[action]
 
         if next_state is None:
-            target = reward
+            unserved = len(remaining_customers)
+            terminal_reward = -UNSERVED_CUSTOMER_PENALTY * unserved
+            if unserved == 0:
+                terminal_reward += FULL_SERVICE_BONUS
+            target = reward + terminal_reward
         else:
             # Prochaines actions possibles pour next_state
             next_actions: List[int] = []
@@ -259,6 +277,7 @@ def solve_cvrp_qlearning(instance: Instance, params: QParams) -> RlSolveResponse
     best_routes: List[EpisodeRoute] = []
     best_distance = float("inf")
     best_feasible = False
+    infeasible_seen = False
     log: List[str] = []
 
     for ep in range(1, params.episodes + 1):
@@ -286,6 +305,9 @@ def solve_cvrp_qlearning(instance: Instance, params: QParams) -> RlSolveResponse
         elif not best_feasible and ep_result.total_distance < best_distance:
             best_distance = ep_result.total_distance
             best_routes = ep_result.routes
+            infeasible_seen = True
+        elif not ep_result.feasible:
+            infeasible_seen = True
 
     runtime_ms = int((time.time() - start) * 1000)
 
@@ -314,6 +336,10 @@ def solve_cvrp_qlearning(instance: Instance, params: QParams) -> RlSolveResponse
         )
 
     violations = ViolationsDto(capacity=0)  # on respecte la capacité par construction
+
+    log.append(
+        f"Best summary: distance={best_distance:.2f}, vehicles={len(routes_out)}, feasible={best_feasible}, infeasible_seen={infeasible_seen}"
+    )
 
     return RlSolveResponse(
         distance=best_distance,
