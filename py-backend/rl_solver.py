@@ -331,7 +331,9 @@ class DQNSolver:
             f"Planned epsilon decay: start={self.hyper.epsilon_start} end={self.hyper.epsilon_end}",
         ]
         return EpisodeResult(
-            total_distance=float("inf"),
+            # Finite placeholder to avoid serialization errors while the
+            # learning loop remains to be implemented.
+            total_distance=0.0,
             feasible=False,
             vehicles_used=0,
             routes=[],
@@ -343,7 +345,9 @@ class DQNSolver:
 
         log = ["Inference stub executed; replace with greedy argmax policy"]
         return EpisodeResult(
-            total_distance=float("inf"),
+            # Finite placeholder to avoid serialization errors while the
+            # inference policy is still stubbed out.
+            total_distance=0.0,
             feasible=False,
             vehicles_used=0,
             routes=[],
