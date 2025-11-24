@@ -112,9 +112,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   toggleSidebar(): void {
-    if (this.isHandset) {
-      this.sidebarOpen = !this.sidebarOpen;
-    }
+    this.sidebarOpen = !this.sidebarOpen;
   }
 
   onRun(config: SolverRunConfig): void {
