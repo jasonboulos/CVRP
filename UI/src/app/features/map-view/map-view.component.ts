@@ -20,10 +20,42 @@ export class MapViewComponent {
   @Input() customers: Customer[] = [];
   @Input() routes: RoutePlan[] = [];
   @Input() highlightVehicle: number | null = null;
+  @Input() highlightVehicles: number[] = [];
   @Input() utilization = 0;
 
   readonly width = 1000;
   readonly height = 600;
+
+  private getBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    const points: { x: number; y: number }[] = [];
+    if (this.depot) {
+      points.push({ x: this.depot.x, y: this.depot.y });
+    }
+    if (this.customers?.length) {
+      points.push(...this.customers.map((customer) => ({ x: customer.x, y: customer.y })));
+    }
+
+    if (!points.length) {
+      return { minX: 0, maxX: 100, minY: 0, maxY: 100 };
+    }
+
+    const minX = Math.min(...points.map((p) => p.x));
+    const maxX = Math.max(...points.map((p) => p.x));
+    const minY = Math.min(...points.map((p) => p.y));
+    const maxY = Math.max(...points.map((p) => p.y));
+
+    const rangeX = Math.max(maxX - minX, 8);
+    const rangeY = Math.max(maxY - minY, 8);
+    const paddingX = Math.max(rangeX * 0.1, 4);
+    const paddingY = Math.max(rangeY * 0.1, 4);
+
+    return {
+      minX: minX - paddingX,
+      maxX: maxX + paddingX,
+      minY: minY - paddingY,
+      maxY: maxY + paddingY,
+    };
+  }
 
   trackByRoute(_: number, route: RoutePlan): number {
     return route.vehicle;
@@ -57,46 +89,53 @@ export class MapViewComponent {
   }
 
   scaleX(value: number): number {
-    return Number(((value / 100) * this.width).toFixed(2));
+    const { minX, maxX } = this.getBounds();
+    return Number((((value - minX) / (maxX - minX)) * this.width).toFixed(2));
   }
 
   scaleY(value: number): number {
-    return Number(((1 - value / 100) * this.height).toFixed(2));
+    const { minY, maxY } = this.getBounds();
+    return Number((((1 - (value - minY) / (maxY - minY)) * this.height)).toFixed(2));
   }
 
   isRouteDimmed(route: RoutePlan): boolean {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return false;
     }
-    return route.vehicle !== this.highlightVehicle;
+    return !activeVehicles.has(route.vehicle);
   }
 
   isRouteHighlighted(route: RoutePlan): boolean {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return false;
     }
-    return route.vehicle === this.highlightVehicle;
+    return activeVehicles.has(route.vehicle);
   }
 
   getRouteStrokeOpacity(route: RoutePlan): number {
-    if (this.highlightVehicle === null) {
+    const activeVehicles = this.getActiveVehicles();
+    if (!activeVehicles) {
       return 0.45;
     }
-    return route.vehicle === this.highlightVehicle ? 0.95 : 0.15;
+    return activeVehicles.has(route.vehicle) ? 0.95 : 0.25;
   }
 
   getRouteStrokeWidth(route: RoutePlan): number {
-    if (this.highlightVehicle !== null && route.vehicle === this.highlightVehicle) {
-      return 5;
+    const activeVehicles = this.getActiveVehicles();
+    if (activeVehicles && activeVehicles.has(route.vehicle)) {
+      return 4;
     }
-    return 3.5;
+    return 2.75;
   }
 
   getRouteSegments(route: RoutePlan): RouteSegment[] {
     if (!this.depot || route.nodes.length < 2) {
       return [];
     }
-    if (this.highlightVehicle !== null && route.vehicle !== this.highlightVehicle) {
+    const activeVehicles = this.getActiveVehicles();
+    if (activeVehicles && !activeVehicles.has(route.vehicle)) {
       return [];
     }
 
@@ -140,5 +179,15 @@ export class MapViewComponent {
     }
     const customer = this.customers.find((item) => item.id === nodeId);
     return customer ? `Customer ${customer.id}` : `Node ${nodeId}`;
+  }
+
+  private getActiveVehicles(): Set<number> | null {
+    if (this.highlightVehicles?.length) {
+      return new Set(this.highlightVehicles);
+    }
+    if (this.highlightVehicle !== null) {
+      return new Set([this.highlightVehicle]);
+    }
+    return null;
   }
 }

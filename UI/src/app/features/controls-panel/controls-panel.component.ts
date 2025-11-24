@@ -43,6 +43,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   @Output() reset = new EventEmitter<void>();
   @Output() export = new EventEmitter<'json' | 'png'>();
   @Output() configChange = new EventEmitter<SolverRunConfig>();
+  @Output() togglePanel = new EventEmitter<void>();
 
   private readonly subscription = new Subscription();
   private parameterSubscriptions: Subscription[] = [];
