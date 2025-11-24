@@ -39,6 +39,7 @@ py-backend/
   models.py      # Modèles de données (Instance, paramètres, réponse)
   rl_solver.py   # Solveur RL (Q-Learning)
   ga_solver.py   # Solveur GA (Algorithme génétique)
+  requirements.txt # Dépendances Python pour le backend
 
 ##  2.2. Installation des librairies
 Option A – Avec environnement virtuel (recommandé)
@@ -50,10 +51,10 @@ python -m venv .venv
 # Linux / macOS
 source .venv/bin/activate
 
-pip install fastapi uvicorn
+pip install -r requirements.txt
 
 Option B – Sans environnement virtuel
-pip install fastapi uvicorn
+pip install -r requirements.txt
 
 2.3. Lancer le backend
 uvicorn main:app --reload --port 8080
