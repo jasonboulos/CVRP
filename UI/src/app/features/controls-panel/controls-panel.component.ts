@@ -38,11 +38,13 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   @Input() algorithms: AlgorithmSummary[] = [];
   @Input() config!: SolverRunConfig;
   @Input() solving = false;
+  @Input() showPanelToggle = false;
 
   @Output() run = new EventEmitter<SolverRunConfig>();
   @Output() reset = new EventEmitter<void>();
   @Output() export = new EventEmitter<'json' | 'png'>();
   @Output() configChange = new EventEmitter<SolverRunConfig>();
+  @Output() togglePanel = new EventEmitter<void>();
 
   private readonly subscription = new Subscription();
   private parameterSubscriptions: Subscription[] = [];

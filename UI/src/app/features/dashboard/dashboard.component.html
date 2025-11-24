@@ -43,10 +43,12 @@
               [algorithms]="algorithms"
               [config]="config"
               [solving]="isSolving"
+              [showPanelToggle]="isHandset"
               (run)="onRun($event)"
               (reset)="onReset()"
               (export)="onExport($event)"
               (configChange)="onConfigChanged($event)"
+              (togglePanel)="toggleSidebar()"
             ></app-controls-panel>
           </div>
         </div>
