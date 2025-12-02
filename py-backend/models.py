@@ -69,3 +69,35 @@ class GAParams(BaseModel):
 class GaSolveRequest(BaseModel):
     instance: Instance
     params: Optional[GAParams] = None
+
+class TabuParams(BaseModel):
+    iterations: int = 200
+    tabuTenure: int = 15
+    seed: str = "12345"
+
+class TabuSolveRequest(BaseModel):
+    instance: Instance
+    params: Optional[TabuParams] = None
+
+
+class SaParams(BaseModel):
+    iterations: int = 2000
+    startTemp: float = 100.0
+    cooling: float = 0.92
+    seed: str = "12345"
+
+class SaSolveRequest(BaseModel):
+    instance: Instance
+    params: Optional[SaParams] = None
+
+
+class AcoParams(BaseModel):
+    ants: int = 20
+    iterations: int = 100
+    evaporation: float = 0.45
+    seed: str = "12345"
+
+class AcoSolveRequest(BaseModel):
+    instance: Instance
+    params: Optional[AcoParams] = None
+

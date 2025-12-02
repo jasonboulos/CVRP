@@ -1,288 +1,232 @@
+# py-backend/ga_solver.py
+
 import math
 import random
 import time
-from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple
 
-from models import (
-    Instance,
-    GAParams,
-    RoutePlan,
-    ViolationsDto,
-    RlSolveResponse,
-)
-
-# ---------- Outils communs ----------
-
-def build_distance_matrix(coords: List[Tuple[float, float]]) -> List[List[float]]:
-    """Matrice de distances euclidiennes entre tous les nœuds."""
-    n = len(coords)
-    mat = [[0.0] * n for _ in range(n)]
-    for i in range(n):
-        x1, y1 = coords[i]
-        for j in range(n):
-            if i == j:
-                continue
-            x2, y2 = coords[j]
-            mat[i][j] = math.hypot(x1 - x2, y1 - y2)
-    return mat
+from models import Instance, GAParams, RlSolveResponse, RoutePlan, ViolationsDto, Customer
+from cvrp_eval import evaluate_solution_strict, build_customer_map
 
 
-@dataclass
-class GARoute:
-    vehicle: int       # id du véhicule
-    nodes: List[int]   # 0 = dépôt, sinon id indexé 1..N
-    load: int          # charge totale
-    distance: float    # distance de la route
+Chromosome = List[int]  # permutation des ids clients
 
 
-# ---------- Décodage d’un chromosome en routes CVRP ----------
-
-def decode_chromosome(
-    instance: Instance,
-    dist: List[List[float]],
-    chrom: List[int],
-    big_penalty: float = 10_000.0,
-) -> Tuple[float, float, bool, int, List[GARoute]]:
-    """
-    - chrom : permutation des clients (indices 1..N).
-    - On parcourt le chromosome et on coupe les routes quand on atteint la capacité.
-    - Si on utilise plus de véhicules que disponibles, on ajoute une grosse pénalité.
-    Retourne :
-      fitness, distance_sans_penalite, feasible, extra_vehicles, routes
-    """
-    depot = instance.depot
-    customers = instance.customers
-    vehicles = instance.vehicles.vehicles
-    max_vehicles = len(vehicles)
-
-    routes: List[GARoute] = []
-    total_distance = 0.0
-
-    # première route
-    current_nodes = [0]    # on part du dépôt (index 0 dans la matrice)
-    current_load = 0
-    current_distance = 0.0
-    current_idx = 0        # index dans la matrice de distance (0 = dépôt)
-    vehicle_idx = 0
-    extra_vehicles = 0
-
-    for gene in chrom:
-        cust_idx = gene             # 1..N
-        c = customers[cust_idx - 1]
-        demand = c.demand
-
-        vehicle_index_safe = min(vehicle_idx, max_vehicles - 1)
-        capacity = vehicles[vehicle_index_safe].capacity
-        remaining_capacity = capacity - current_load
-
-        # Si on ne peut plus ajouter ce client : on ferme la route et on passe au véhicule suivant
-        if demand > remaining_capacity and len(current_nodes) > 1:
-            # retour au dépôt
-            d_back = dist[current_idx][0]
-            current_distance += d_back
-            total_distance += d_back
-            current_nodes.append(0)
-
-            routes.append(
-                GARoute(
-                    vehicle=vehicles[vehicle_index_safe].id,
-                    nodes=current_nodes.copy(),
-                    load=current_load,
-                    distance=current_distance,
-                )
-            )
-
-            # nouveau véhicule
-            vehicle_idx += 1
-            if vehicle_idx >= max_vehicles:
-                # on dépasse la flotte autorisée
-                extra_vehicles += 1
-                vehicle_idx = max_vehicles - 1  # on réutilise le dernier juste pour l'id
-
-            current_nodes = [0]
-            current_load = 0
-            current_distance = 0.0
-            current_idx = 0
-            vehicle_index_safe = min(vehicle_idx, max_vehicles - 1)
-            capacity = vehicles[vehicle_index_safe].capacity
-            remaining_capacity = capacity
-
-        # Aller servir le client
-        d_go = dist[current_idx][cust_idx]
-        current_distance += d_go
-        total_distance += d_go
-        current_nodes.append(cust_idx)
-        current_load += demand
-        current_idx = cust_idx
-
-    # Fermer la dernière route si elle contient des clients
-    if len(current_nodes) > 1:
-        d_back = dist[current_idx][0]
-        current_distance += d_back
-        total_distance += d_back
-        current_nodes.append(0)
-        vehicle_index_safe = min(vehicle_idx, max_vehicles - 1)
-        routes.append(
-            GARoute(
-                vehicle=vehicles[vehicle_index_safe].id,
-                nodes=current_nodes.copy(),
-                load=current_load,
-                distance=current_distance,
-            )
+def _clone_routes(routes: List[RoutePlan]) -> List[RoutePlan]:
+    return [
+        RoutePlan(
+            vehicle=r.vehicle,
+            nodes=list(r.nodes),
+            load=r.load,
+            distance=r.distance,
         )
-
-    vehicles_used = len(routes)
-    # pénalité si on a utilisé plus de véhicules que disponibles
-    extra_vehicles = max(0, vehicles_used - max_vehicles) + extra_vehicles
-    feasible = (extra_vehicles == 0)
-    penalty = big_penalty * extra_vehicles
-    fitness = total_distance + penalty
-
-    return fitness, total_distance, feasible, extra_vehicles, routes
-
-
-# ---------- Opérateurs GA ----------
-
-def tournament_select(pop: List[Dict], k: int, rng: random.Random) -> Dict:
-    """Sélection par tournoi (on garde le meilleur de k individus tirés au hasard)."""
-    best = None
-    for _ in range(k):
-        cand = rng.choice(pop)
-        if best is None or cand["fitness"] < best["fitness"]:
-            best = cand
-    return best
-
-
-def ordered_crossover(p1: List[int], p2: List[int], rng: random.Random) -> List[int]:
-    """Crossover type OX (Ordered Crossover) pour permutations."""
-    n = len(p1)
-    a, b = sorted(rng.sample(range(n), 2))
-    child = [None] * n
-    child[a:b] = p1[a:b]
-
-    pos = b
-    for gene in p2:
-        if gene not in child:
-            if pos >= n:
-                pos = 0
-            child[pos] = gene
-            pos += 1
-
-    return child
-
-
-def mutate_swap(chrom: List[int], rng: random.Random) -> None:
-    """Mutation : échange de deux positions dans le chromosome."""
-    i, j = rng.sample(range(len(chrom)), 2)
-    chrom[i], chrom[j] = chrom[j], chrom[i]
-
-
-# ---------- Solveur GA principal ----------
-
-def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
-    start = time.time()
-
-    depot = instance.depot
-    customers = instance.customers
-
-    coords = [(depot.x, depot.y)] + [(c.x, c.y) for c in customers]
-    dist = build_distance_matrix(coords)
-
-    rng = random.Random(params.seed)
-    n = len(customers)
-    base_genes = list(range(1, n + 1))
-
-    # ----- Initialisation de la population -----
-    population: List[Dict] = []
-    for _ in range(params.populationSize):
-        chrom = base_genes.copy()
-        rng.shuffle(chrom)
-        fitness, dist_raw, feasible, extra, routes = decode_chromosome(instance, dist, chrom)
-        population.append(
-            {
-                "chrom": chrom,
-                "fitness": fitness,
-                "distance": dist_raw,
-                "feasible": feasible,
-                "routes": routes,
-            }
-        )
-
-    # meilleur individu courant
-    best = min(population, key=lambda ind: ind["fitness"])
-    log: List[str] = [
-        f"Init: bestDistance={best['distance']:.2f}, feasible={best['feasible']}"
+        for r in routes
     ]
 
-    # ----- Boucle GA -----
-    for gen in range(1, params.generations + 1):
-        new_pop: List[Dict] = []
 
-        # Élitisime : on garde le meilleur
-        new_pop.append(best)
+def _init_population(
+    instance: Instance, params: GAParams, rng: random.Random
+) -> List[Chromosome]:
+    customers = [c.id for c in instance.customers]
+    pop: List[Chromosome] = []
+    for _ in range(params.populationSize):
+        chrom = customers[:]
+        rng.shuffle(chrom)
+        pop.append(chrom)
+    return pop
 
-        # On complète la population
-        while len(new_pop) < params.populationSize:
-            p1 = tournament_select(population, k=3, rng=rng)
-            p2 = tournament_select(population, k=3, rng=rng)
 
-            child = ordered_crossover(p1["chrom"], p2["chrom"], rng)
+def _decode_chromosome_to_routes(
+    chrom: Chromosome,
+    instance: Instance,
+    customers_map: dict[int, Customer],
+) -> List[RoutePlan]:
+    """
+    Transforme une permutation de clients en solution CVRP :
+    on remplit les véhicules séquentiellement en respectant la capacité si possible,
+    sinon on force dans la dernière route (ce sera marqué comme infaisable par evaluate_solution_strict).
+    """
+    vehicles = instance.vehicles.vehicles
+    capacities = [max(1, v.capacity) for v in vehicles]
 
-            if rng.random() < params.mutationRate:
-                mutate_swap(child, rng)
+    routes: List[RoutePlan] = []
+    for v in vehicles:
+        routes.append(RoutePlan(vehicle=v.id, nodes=[0, 0], load=0, distance=0.0))
 
-            fitness, dist_raw, feasible, extra, routes = decode_chromosome(
-                instance, dist, child
-            )
-            new_pop.append(
-                {
-                    "chrom": child,
-                    "fitness": fitness,
-                    "distance": dist_raw,
-                    "feasible": feasible,
-                    "routes": routes,
-                }
-            )
+    for cid in chrom:
+        demand = customers_map[cid].demand
+        placed = False
 
-        population = new_pop
-        current_best = min(population, key=lambda ind: ind["fitness"])
-        if current_best["fitness"] < best["fitness"]:
-            best = current_best
+        for idx, r in enumerate(routes):
+            cap = capacities[idx]
+            if r.load + demand <= cap:
+                r.nodes.insert(len(r.nodes) - 1, cid)
+                r.load += demand
+                placed = True
+                break
 
-        if gen % 10 == 0 or gen == params.generations:
-            log.append(
-                f"Generation {gen}: bestDistance={best['distance']:.2f}, feasible={best['feasible']}"
-            )
+        if not placed:
+            # si aucun véhicule ne peut accueillir le client -> on le force dans la dernière route
+            routes[-1].nodes.insert(len(routes[-1].nodes) - 1, cid)
+            routes[-1].load += demand
 
-    runtime_ms = int((time.time() - start) * 1000)
+    return routes
 
-    # Conversion des routes internes -> RoutePlan pour l'API
-    routes_out: List[RoutePlan] = []
-    for r in best["routes"]:
-        node_ids: List[int] = []
-        for idx in r.nodes:
-            if idx == 0:
-                node_ids.append(depot.id)
-            else:
-                node_ids.append(customers[idx - 1].id)
-        routes_out.append(
-            RoutePlan(
-                vehicle=r.vehicle,
-                nodes=node_ids,
-                load=r.load,
-                distance=r.distance,
-            )
+
+def _fitness(
+    chrom: Chromosome,
+    instance: Instance,
+    customers_map: dict[int, Customer],
+) -> Tuple[float, bool, int, List[RoutePlan]]:
+    """
+    Calcule le coût du chromosome :
+      - si solution faisable : fitness = distance totale
+      - sinon : fitness très grande (infaisable, donc éliminé)
+    """
+    routes = _decode_chromosome_to_routes(chrom, instance, customers_map)
+    dist, feasible, viol = evaluate_solution_strict(routes, instance)
+    if not feasible:
+        # on pénalise fortement les solutions infaisables
+        return 1e12 + viol, False, viol, routes
+    return dist, True, viol, routes
+
+
+def _tournament_selection(
+    population: List[Chromosome],
+    fitnesses: List[float],
+    rng: random.Random,
+    k: int = 3,
+) -> Chromosome:
+    """Sélection par tournoi."""
+    best_idx = None
+    best_fit = math.inf
+    n = len(population)
+    for _ in range(k):
+        i = rng.randrange(n)
+        if fitnesses[i] < best_fit:
+            best_fit = fitnesses[i]
+            best_idx = i
+    return population[best_idx][:]
+
+
+def _order_crossover(p1: Chromosome, p2: Chromosome, rng: random.Random) -> Chromosome:
+    """
+    OX (Order Crossover) : conserve un segment de p1, puis complète
+    avec l'ordre de p2 pour les gènes manquants.
+    """
+    n = len(p1)
+    c = [-1] * n
+    i, j = sorted([rng.randrange(n), rng.randrange(n)])
+    # copie du segment de p1
+    for idx in range(i, j + 1):
+        c[idx] = p1[idx]
+
+    # complète avec p2
+    p2_idx = 0
+    for idx in range(n):
+        if c[idx] != -1:
+            continue
+        while p2[p2_idx] in c:
+            p2_idx += 1
+        c[idx] = p2[p2_idx]
+    return c
+
+
+def _mutate(chrom: Chromosome, mutation_rate: float, rng: random.Random) -> None:
+    """Mutation par swap avec probabilité mutation_rate."""
+    if rng.random() < mutation_rate:
+        n = len(chrom)
+        i, j = rng.randrange(n), rng.randrange(n)
+        chrom[i], chrom[j] = chrom[j], chrom[i]
+
+
+def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
+    """
+    Algorithme génétique cohérent avec la formulation mathématique :
+    - objectif = distance totale
+    - seules les solutions faisables (evaluate_solution_strict) sont considérées “bonnes”
+    - la meilleure solution renvoyée est faisable.
+    """
+    start_time = time.time()
+    rng = random.Random(params.seed)
+    customers_map = build_customer_map(instance)
+
+    # 1. Initialisation
+    population = _init_population(instance, params, rng)
+
+    best_chrom: Chromosome | None = None
+    best_dist = math.inf
+    best_routes: List[RoutePlan] | None = None
+    best_viol = 0
+
+    log: List[str] = [
+        f"[GA] start: popSize={params.populationSize}, generations={params.generations}, mutation={params.mutationRate}"
+    ]
+
+    # 2. Boucle principale
+    for gen in range(params.generations):
+        fitnesses: List[float] = []
+        routes_cache: List[List[RoutePlan]] = []
+        feasible_flags: List[bool] = []
+
+        # évaluation de la population
+        for chrom in population:
+            fit, feasible, viol, routes = _fitness(chrom, instance, customers_map)
+            fitnesses.append(fit)
+            routes_cache.append(routes)
+            feasible_flags.append(feasible)
+
+            if feasible and fit < best_dist:
+                best_dist = fit
+                best_chrom = chrom[:]
+                best_routes = _clone_routes(routes)
+                best_viol = viol
+
+        log.append(
+            f"[GA] gen {gen}: bestDistSoFar={best_dist:.2f}, "
+            f"bestFitnessInGen={min(fitnesses):.2f}, "
+            f"feasibleCount={sum(1 for f in feasible_flags if f)}"
         )
 
-    violations = ViolationsDto(capacity=0)  # les pénalités sont dans le fitness
+        # 3. Reproduction (elitisme + sélection + croisement + mutation)
+        new_population: List[Chromosome] = []
+
+        # Élitisime : si on a déjà un best_chrom faisable, on le garde
+        if best_chrom is not None:
+            new_population.append(best_chrom[:])
+
+        while len(new_population) < params.populationSize:
+            parent1 = _tournament_selection(population, fitnesses, rng)
+            parent2 = _tournament_selection(population, fitnesses, rng)
+            child = _order_crossover(parent1, parent2, rng)
+            _mutate(child, params.mutationRate, rng)
+            new_population.append(child)
+
+        population = new_population
+
+    # 4. Résultat final
+    if best_chrom is None or best_routes is None or not math.isfinite(best_dist):
+        # fallback : décoder le premier individu, même si ce n'est pas idéal
+        first_chrom = population[0]
+        _, feasible, viol, routes = _fitness(first_chrom, instance, customers_map)
+        best_routes = routes
+        best_dist, feasible_final, best_viol = evaluate_solution_strict(best_routes, instance)
+    else:
+        best_dist, feasible_final, best_viol = evaluate_solution_strict(best_routes, instance)
+
+    vehicles_used = len([r for r in best_routes if len(r.nodes) > 2])
+    runtime_ms = int((time.time() - start_time) * 1000)
+
+    log.append(
+        f"[GA] end: dist={best_dist:.2f}, feasible={feasible_final}, viol={best_viol}, runtimeMs={runtime_ms}"
+    )
 
     return RlSolveResponse(
-        distance=best["distance"],
-        feasible=best["feasible"],
-        vehiclesUsed=len(routes_out),
-        routes=routes_out,
-        violations=violations,
+        distance=round(best_dist, 2),
+        feasible=feasible_final,
+        vehiclesUsed=vehicles_used,
+        routes=best_routes,
+        violations=ViolationsDto(capacity=best_viol),
         log=log,
         runtimeMs=runtime_ms,
     )
