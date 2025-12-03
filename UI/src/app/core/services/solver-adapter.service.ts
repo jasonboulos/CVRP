@@ -115,6 +115,21 @@ export class SolverAdapterService {
       return this.solveWithBackendGa(instance, vehicles, parameters, seed);
     }
 
+    if (algorithm === 'tabu') {
+      console.log('Solving with backend TABU service...');
+      return this.solveWithBackendTabu(instance, vehicles, parameters, seed);
+    }
+
+    if (algorithm === 'sa') {
+      console.log('Solving with backend SA service...');
+      return this.solveWithBackendSa(instance, vehicles, parameters, seed);
+    }
+
+    if (algorithm === 'aco') {
+      console.log('Solving with backend ACO service...');
+      return this.solveWithBackendAco(instance, vehicles, parameters, seed);
+    }
+
     console.log('Solving with local mock solver...');
     console.log(algorithm);
     return this.solveWithMock(instance, vehicles, algorithm, parameters, seed);
@@ -258,6 +273,152 @@ export class SolverAdapterService {
     const url = `${environment.apiBaseUrl}/api/ga/solve`;
     const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
     console.log('GA Solve Response:', response);
+    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
+
+    return {
+      distance: Number(response.distance.toFixed(2)),
+      runtimeMs: response.runtimeMs,
+      feasible: response.feasible,
+      vehiclesUsed: response.vehiclesUsed,
+      routes: coloredRoutes,
+      violations: response.violations,
+      log: response.log,
+      convergence: undefined,
+      runtimeBreakdown: undefined,
+      gap: undefined,
+    };
+  }
+
+  // ---------------- BACKEND TABU ----------------
+
+  private async solveWithBackendTabu(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+
+    const payload = {
+      instance: {
+        id: instance.id,
+        depot: instance.depot,
+        customers: instance.customers,
+        vehicles: {
+          vehicles: vehicles.vehicles.map((vehicle, index) => ({
+            id: vehicle.id ?? index + 1,
+            capacity: Math.max(1, Math.round(vehicle.capacity)),
+          })),
+        },
+      },
+      params: {
+        iterations: Math.round(parameters['iterations'] ?? 200),
+        tabuTenure: Math.round(parameters['tabuTenure'] ?? 15),
+        seed,
+      },
+    };
+
+    const url = `${environment.apiBaseUrl}/api/tabu/solve`;
+    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    console.log('TABU Solve Response:', response);
+    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
+
+    return {
+      distance: Number(response.distance.toFixed(2)),
+      runtimeMs: response.runtimeMs,
+      feasible: response.feasible,
+      vehiclesUsed: response.vehiclesUsed,
+      routes: coloredRoutes,
+      violations: response.violations,
+      log: response.log,
+      convergence: undefined,
+      runtimeBreakdown: undefined,
+      gap: undefined,
+    };
+  }
+
+  // ---------------- BACKEND SA ----------------
+
+  private async solveWithBackendSa(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+
+    const payload = {
+      instance: {
+        id: instance.id,
+        depot: instance.depot,
+        customers: instance.customers,
+        vehicles: {
+          vehicles: vehicles.vehicles.map((vehicle, index) => ({
+            id: vehicle.id ?? index + 1,
+            capacity: Math.max(1, Math.round(vehicle.capacity)),
+          })),
+        },
+      },
+      params: {
+        iterations: Math.round(parameters['iterations'] ?? 2000), // interne, pas de slider
+        startTemp: parameters['startTemp'] ?? 100,
+        cooling: parameters['cooling'] ?? 0.92,
+        seed,
+      },
+    };
+
+    const url = `${environment.apiBaseUrl}/api/sa/solve`;
+    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    console.log('SA Solve Response:', response);
+    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
+
+    return {
+      distance: Number(response.distance.toFixed(2)),
+      runtimeMs: response.runtimeMs,
+      feasible: response.feasible,
+      vehiclesUsed: response.vehiclesUsed,
+      routes: coloredRoutes,
+      violations: response.violations,
+      log: response.log,
+      convergence: undefined,
+      runtimeBreakdown: undefined,
+      gap: undefined,
+    };
+  }
+
+  // ---------------- BACKEND ACO ----------------
+
+  private async solveWithBackendAco(
+    instance: ProblemInstance,
+    vehicles: VehiclesConfig,
+    parameters: Record<string, number>,
+    seed: string,
+  ): Promise<SolveResponse> {
+    const vehicleCount = this.getVehicleCount(vehicles);
+
+    const payload = {
+      instance: {
+        id: instance.id,
+        depot: instance.depot,
+        customers: instance.customers,
+        vehicles: {
+          vehicles: vehicles.vehicles.map((vehicle, index) => ({
+            id: vehicle.id ?? index + 1,
+            capacity: Math.max(1, Math.round(vehicle.capacity)),
+          })),
+        },
+      },
+      params: {
+        ants: Math.round(parameters['ants'] ?? 20),
+        iterations: Math.round(parameters['iterations'] ?? 100), // interne
+        evaporation: parameters['evaporation'] ?? 0.45,
+        seed,
+      },
+    };
+
+    const url = `${environment.apiBaseUrl}/api/aco/solve`;
+    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    console.log('ACO Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 
     return {
