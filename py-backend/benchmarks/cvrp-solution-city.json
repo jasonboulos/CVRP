@@ -1,0 +1,220 @@
+{
+  "config": {
+    "datasetId": "city-grid",
+    "vehicles": {
+      "vehicles": [
+        {
+          "id": 1,
+          "capacity": 60
+        },
+        {
+          "id": 2,
+          "capacity": 60
+        },
+        {
+          "id": 3,
+          "capacity": 60
+        },
+        {
+          "id": 4,
+          "capacity": 60
+        }
+      ]
+    },
+    "algorithm": "tabu",
+    "parameters": {
+      "iterations": 200,
+      "tabuTenure": 15
+    },
+    "seed": "12345"
+  },
+  "instance": {
+    "id": "city-grid",
+    "name": "City Grid",
+    "depot": {
+      "id": 0,
+      "x": 50,
+      "y": 50
+    },
+    "customers": [
+      {
+        "id": 1,
+        "x": 20,
+        "y": 20,
+        "demand": 12
+      },
+      {
+        "id": 2,
+        "x": 40,
+        "y": 20,
+        "demand": 7
+      },
+      {
+        "id": 3,
+        "x": 60,
+        "y": 20,
+        "demand": 6
+      },
+      {
+        "id": 4,
+        "x": 80,
+        "y": 20,
+        "demand": 8
+      },
+      {
+        "id": 5,
+        "x": 20,
+        "y": 40,
+        "demand": 10
+      },
+      {
+        "id": 6,
+        "x": 40,
+        "y": 40,
+        "demand": 9
+      },
+      {
+        "id": 7,
+        "x": 60,
+        "y": 40,
+        "demand": 11
+      },
+      {
+        "id": 8,
+        "x": 80,
+        "y": 40,
+        "demand": 5
+      },
+      {
+        "id": 9,
+        "x": 20,
+        "y": 60,
+        "demand": 14
+      },
+      {
+        "id": 10,
+        "x": 40,
+        "y": 60,
+        "demand": 13
+      },
+      {
+        "id": 11,
+        "x": 60,
+        "y": 60,
+        "demand": 9
+      },
+      {
+        "id": 12,
+        "x": 80,
+        "y": 60,
+        "demand": 12
+      },
+      {
+        "id": 13,
+        "x": 20,
+        "y": 80,
+        "demand": 7
+      },
+      {
+        "id": 14,
+        "x": 40,
+        "y": 80,
+        "demand": 6
+      },
+      {
+        "id": 15,
+        "x": 60,
+        "y": 80,
+        "demand": 8
+      }
+    ]
+  },
+  "solution": {
+    "distance": 348.1,
+    "runtimeMs": 232,
+    "feasible": true,
+    "vehiclesUsed": 4,
+    "routes": [
+      {
+        "vehicle": 1,
+        "nodes": [
+          0,
+          5,
+          1,
+          2,
+          0
+        ],
+        "load": 29,
+        "distance": 103.25,
+        "color": "#3b82f6"
+      },
+      {
+        "vehicle": 2,
+        "nodes": [
+          0,
+          0,
+          10,
+          15,
+          14,
+          13,
+          9
+        ],
+        "load": 48,
+        "distance": 102.43,
+        "color": "#ec4899"
+      },
+      {
+        "vehicle": 3,
+        "nodes": [
+          0,
+          11,
+          12,
+          8,
+          4,
+          3,
+          7,
+          0
+        ],
+        "load": 51,
+        "distance": 128.28,
+        "color": "#22c55e"
+      },
+      {
+        "vehicle": 4,
+        "nodes": [
+          0,
+          0,
+          6
+        ],
+        "load": 9,
+        "distance": 14.14,
+        "color": "#f97316"
+      }
+    ],
+    "violations": {
+      "capacity": 0
+    },
+    "log": [
+      "[TABU] start, dist=605.32, feasible=True",
+      "iterations=200, tabuTenure=15",
+      "[TABU] iter 0: new best dist=579.56",
+      "[TABU] iter 1: new best dist=551.27",
+      "[TABU] iter 2: new best dist=534.84",
+      "[TABU] iter 3: new best dist=526.68",
+      "[TABU] iter 4: new best dist=500.92",
+      "[TABU] iter 6: new best dist=487.82",
+      "[TABU] iter 7: new best dist=469.30",
+      "[TABU] iter 8: new best dist=455.15",
+      "[TABU] iter 9: new best dist=447.91",
+      "[TABU] iter 10: new best dist=439.63",
+      "[TABU] iter 11: new best dist=430.43",
+      "[TABU] iter 17: new best dist=418.72",
+      "[TABU] iter 19: new best dist=391.91",
+      "[TABU] iter 22: new best dist=383.62",
+      "[TABU] iter 23: new best dist=368.10",
+      "[TABU] iter 38: new best dist=356.38",
+      "[TABU] iter 59: new best dist=348.10",
+      "[TABU] end: dist=348.10, feasible=True, viol=0, runtimeMs=232"
+    ]
+  }
+}
