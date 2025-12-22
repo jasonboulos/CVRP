@@ -71,6 +71,7 @@ def run_episode(
     UNSERVED_CUSTOMER_PENALTY = 750.0
     # Strongly reward serving everyone to offset the added penalties and push toward full coverage.
     FULL_SERVICE_BONUS = 1500.0
+
     n_cust = len(customers)
     remaining_customers = set(range(1, n_cust + 1))  # indices 1..N
     routes: List[EpisodeRoute] = []
@@ -169,6 +170,7 @@ def run_episode(
             reward = -STEP_DISTANCE_SCALE * d
             if remaining_capacity > 0 and remaining_customers:
                 reward -= EARLY_RETURN_PENALTY
+
             current_route_dist += d
             total_distance += d
             current_route_nodes.append(0)
@@ -185,6 +187,7 @@ def run_episode(
             vehicle_idx += 1
             if vehicle_idx < len(vehicles) and remaining_customers:
                 reward -= NEW_VEHICLE_PENALTY
+
             if vehicle_idx >= len(vehicles) or not remaining_customers:
                 next_state = None  # terminal
             else:
@@ -204,9 +207,11 @@ def run_episode(
             ci = action
             d = dist[current_idx][ci]
             reward = -STEP_DISTANCE_SCALE * d
+
             current_route_dist += d
             total_distance += d
             current_route_nodes.append(ci)
+
             remaining_capacity -= customers[ci - 1].demand
             current_route_load += customers[ci - 1].demand
             remaining_customers.remove(ci)
@@ -232,9 +237,9 @@ def run_episode(
         else:
             # Prochaines actions possibles pour next_state
             next_actions: List[int] = []
-            for ci in list(remaining_customers):
-                if customers[ci - 1].demand <= remaining_capacity:
-                    next_actions.append(ci)
+            for ci2 in list(remaining_customers):
+                if customers[ci2 - 1].demand <= remaining_capacity:
+                    next_actions.append(ci2)
             if current_idx != 0:
                 next_actions.append(0)
 
@@ -254,9 +259,32 @@ def run_episode(
         if next_state is None:
             break
 
+    # --- Correction : finaliser la route courante si l'épisode s'arrête par max_steps ---
+    # Évite une route ouverte/non enregistrée (distance incohérente).
+    if current_route_load > 0 and not (routes and routes[-1].nodes is current_route_nodes):
+        if current_route_nodes[-1] != 0:
+            d_back = dist[current_idx][0]
+            current_route_dist += d_back
+            total_distance += d_back
+            current_route_nodes.append(0)
+
+        routes.append(
+            EpisodeRoute(
+                vehicle=vehicles[vehicle_idx].id,
+                nodes=current_route_nodes,
+                load=current_route_load,
+                distance=current_route_dist,
+            )
+        )
+
     feasible = not remaining_customers
     vehicles_used = len(routes)
-    return EpisodeResult(total_distance=total_distance, feasible=feasible, vehicles_used=vehicles_used, routes=routes)
+    return EpisodeResult(
+        total_distance=total_distance,
+        feasible=feasible,
+        vehicles_used=vehicles_used,
+        routes=routes,
+    )
 
 
 # ---------- Fonction principale appelée par FastAPI ----------
