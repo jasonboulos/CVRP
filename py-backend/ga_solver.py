@@ -12,6 +12,34 @@ from cvrp_eval import evaluate_solution_strict, build_customer_map
 Chromosome = List[int]  # permutation des ids clients
 
 
+def _build_distance_cache(instance: Instance, customers_map: dict[int, Customer]):
+    """Pré-calcule les distances euclidiennes entre tous les nœuds (0 + clients).
+
+    Le cache est utilisé par le décodage (affectation guidée par le coût) et par
+    l'amélioration locale (2-opt). Cela évite de recalculer des distances à haute fréquence
+    lors des évaluations.
+    """
+    coords: dict[int, tuple[float, float]] = {0: (instance.depot.x, instance.depot.y)}
+    for cid, c in customers_map.items():
+        coords[cid] = (c.x, c.y)
+
+    node_ids = list(coords.keys())
+    cache: dict[tuple[int, int], float] = {}
+    for i in node_ids:
+        x1, y1 = coords[i]
+        for j in node_ids:
+            if i == j:
+                cache[(i, j)] = 0.0
+                continue
+            x2, y2 = coords[j]
+            cache[(i, j)] = math.hypot(x1 - x2, y1 - y2)
+
+    def dist(a: int, b: int) -> float:
+        return cache[(a, b)]
+
+    return dist
+
+
 def _clone_routes(routes: List[RoutePlan]) -> List[RoutePlan]:
     return [
         RoutePlan(
@@ -40,11 +68,17 @@ def _decode_chromosome_to_routes(
     chrom: Chromosome,
     instance: Instance,
     customers_map: dict[int, Customer],
+    dist,
 ) -> List[RoutePlan]:
     """
-    Transforme une permutation de clients en solution CVRP :
-    on remplit les véhicules séquentiellement en respectant la capacité si possible,
-    sinon on force dans la dernière route (ce sera marqué comme infaisable par evaluate_solution_strict).
+    Transforme une permutation de clients en solution CVRP.
+
+    Décodage guidé par le coût : pour chaque client, on choisit la tournée (véhicule)
+    réalisable qui minimise le surcoût de l'insertion en fin de route.
+
+    Si aucune tournée ne peut accueillir le client (capacité insuffisante), on l'insère
+    dans la tournée qui minimise la violation de capacité (overflow), puis le surcoût.
+    La solution sera alors pénalisée par l'évaluation stricte.
     """
     vehicles = instance.vehicles.vehicles
     capacities = [max(1, v.capacity) for v in vehicles]
@@ -55,40 +89,108 @@ def _decode_chromosome_to_routes(
 
     for cid in chrom:
         demand = customers_map[cid].demand
-        placed = False
 
+        best_idx = None
+        best_delta = math.inf
+        best_rem_after = math.inf
+
+        # 1) Essayer d'abord les tournées réalisables : minimiser le surcoût d'insertion
         for idx, r in enumerate(routes):
             cap = capacities[idx]
-            if r.load + demand <= cap:
-                r.nodes.insert(len(r.nodes) - 1, cid)
-                r.load += demand
-                placed = True
-                break
+            if r.load + demand > cap:
+                continue
 
-        if not placed:
-            # si aucun véhicule ne peut accueillir le client -> on le force dans la dernière route
-            routes[-1].nodes.insert(len(routes[-1].nodes) - 1, cid)
-            routes[-1].load += demand
+            last = r.nodes[-2]  # dernier nœud avant le retour dépôt
+            delta = dist(last, cid) + dist(cid, 0) - dist(last, 0)
+            rem_after = cap - (r.load + demand)
+
+            if (delta < best_delta) or (delta == best_delta and rem_after < best_rem_after):
+                best_delta = delta
+                best_rem_after = rem_after
+                best_idx = idx
+
+        # 2) Si aucune tournée ne peut accueillir : minimiser la violation, puis le surcoût
+        if best_idx is None:
+            best_overflow = math.inf
+            for idx, r in enumerate(routes):
+                cap = capacities[idx]
+                overflow = max(0, r.load + demand - cap)
+                last = r.nodes[-2]
+                delta = dist(last, cid) + dist(cid, 0) - dist(last, 0)
+                if (overflow < best_overflow) or (overflow == best_overflow and delta < best_delta):
+                    best_overflow = overflow
+                    best_delta = delta
+                    best_idx = idx
+
+        # insertion en fin de tournée (avant le dépôt)
+        r = routes[best_idx]
+        r.nodes.insert(len(r.nodes) - 1, cid)
+        r.load += demand
 
     return routes
+
+
+def _two_opt_intra_route(nodes: List[int], dist, max_passes: int = 30) -> List[int]:
+    """Amélioration locale 2-opt intra-tournée (0 ... 0).
+
+    Ne modifie pas l'ensemble des clients servis : uniquement l'ordre de visite dans la tournée.
+    """
+    if len(nodes) <= 4:  # [0, a, 0] ou [0, a, b, 0]
+        return nodes
+
+    best = nodes
+    n = len(best)
+    passes = 0
+    improved = True
+
+    while improved and passes < max_passes:
+        improved = False
+        passes += 1
+        # i et k définissent le segment à inverser : (i..k)
+        for i in range(1, n - 2):
+            a, b = best[i - 1], best[i]
+            for k in range(i + 1, n - 1):
+                c, d = best[k], best[k + 1]
+                # gain si on remplace (a-b, c-d) par (a-c, b-d)
+                gain = (dist(a, b) + dist(c, d)) - (dist(a, c) + dist(b, d))
+                if gain > 1e-9:
+                    best = best[:i] + list(reversed(best[i : k + 1])) + best[k + 1 :]
+                    improved = True
+                    break
+            if improved:
+                break
+
+    return best
+
+
+def _local_improve_routes(routes: List[RoutePlan], dist) -> None:
+    """Applique une amélioration locale légère à chaque tournée (2-opt intra-route)."""
+    for r in routes:
+        # ignorer les routes vides [0,0]
+        if len(r.nodes) <= 2:
+            continue
+        r.nodes = _two_opt_intra_route(r.nodes, dist)
 
 
 def _fitness(
     chrom: Chromosome,
     instance: Instance,
     customers_map: dict[int, Customer],
+    dist_fn,
 ) -> Tuple[float, bool, int, List[RoutePlan]]:
     """
     Calcule le coût du chromosome :
       - si solution faisable : fitness = distance totale
       - sinon : fitness très grande (infaisable, donc éliminé)
     """
-    routes = _decode_chromosome_to_routes(chrom, instance, customers_map)
-    dist, feasible, viol = evaluate_solution_strict(routes, instance)
+    routes = _decode_chromosome_to_routes(chrom, instance, customers_map, dist_fn)
+    # amélioration locale légère (intra-route) avant évaluation
+    _local_improve_routes(routes, dist_fn)
+    total_dist, feasible, viol = evaluate_solution_strict(routes, instance)
     if not feasible:
-        # on pénalise fortement les solutions infaisables
-        return 1e12 + viol, False, viol, routes
-    return dist, True, viol, routes
+        # on pénalise fortement les solutions infaisables (tout en conservant un gradient via viol)
+        return 1e9 + 1e6 * viol, False, viol, routes
+    return total_dist, True, viol, routes
 
 
 def _tournament_selection(
@@ -150,6 +252,7 @@ def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
     start_time = time.time()
     rng = random.Random(params.seed)
     customers_map = build_customer_map(instance)
+    dist_fn = _build_distance_cache(instance, customers_map)
 
     # 1. Initialisation
     population = _init_population(instance, params, rng)
@@ -160,7 +263,8 @@ def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
     best_viol = 0
 
     log: List[str] = [
-        f"[GA] start: popSize={params.populationSize}, generations={params.generations}, mutation={params.mutationRate}"
+        f"[GA] start: popSize={params.populationSize}, generations={params.generations}, "
+        f"mutation={params.mutationRate}, decode=best-fit, local2opt=on"
     ]
 
     # 2. Boucle principale
@@ -171,7 +275,7 @@ def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
 
         # évaluation de la population
         for chrom in population:
-            fit, feasible, viol, routes = _fitness(chrom, instance, customers_map)
+            fit, feasible, viol, routes = _fitness(chrom, instance, customers_map, dist_fn)
             fitnesses.append(fit)
             routes_cache.append(routes)
             feasible_flags.append(feasible)
@@ -208,7 +312,7 @@ def solve_cvrp_ga(instance: Instance, params: GAParams) -> RlSolveResponse:
     if best_chrom is None or best_routes is None or not math.isfinite(best_dist):
         # fallback : décoder le premier individu, même si ce n'est pas idéal
         first_chrom = population[0]
-        _, feasible, viol, routes = _fitness(first_chrom, instance, customers_map)
+        _, feasible, viol, routes = _fitness(first_chrom, instance, customers_map, dist_fn)
         best_routes = routes
         best_dist, feasible_final, best_viol = evaluate_solution_strict(best_routes, instance)
     else:

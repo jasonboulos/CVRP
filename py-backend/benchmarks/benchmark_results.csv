@@ -1,0 +1,16 @@
+instance,algorithm,algorithmName,distance,runtimeMs,vehiclesUsed,feasible,capacityViolations,pythonRuntimeMs
+A-n32-k5,TABU,Tabu Search,890.85,335,5,True,0,335
+A-n32-k5,GA,Genetic Algorithm,860.59,5550,5,True,0,5550
+A-n32-k5,SA,Simulated Annealing,898.88,126,5,True,0,126
+A-n32-k5,ACO,Ant Colony,953.55,2036,5,True,0,2036
+A-n32-k5,RL,Reinforcement Learning (Q-learning),1481.0711599986657,500,5,True,0,500
+A-n55-k9,TABU,Tabu Search,1606.57,577,9,True,0,577
+A-n55-k9,GA,Genetic Algorithm,1375.89,9185,9,True,0,9185
+A-n55-k9,SA,Simulated Annealing,1665.34,207,9,True,0,207
+A-n55-k9,ACO,Ant Colony,1289.14,5735,9,True,0,5735
+A-n55-k9,RL,Reinforcement Learning (Q-learning),2699.9570336792244,1230,9,True,0,1230
+A-n80-k10,TABU,Tabu Search,2659.63,764,10,True,0,764
+A-n80-k10,GA,Genetic Algorithm,2379.0,23325,10,True,0,23325
+A-n80-k10,SA,Simulated Annealing,3048.99,264,10,True,0,264
+A-n80-k10,ACO,Ant Colony,2265.02,12020,10,True,0,12020
+A-n80-k10,RL,Reinforcement Learning (Q-learning),4204.582077472378,2404,10,True,0,2408
