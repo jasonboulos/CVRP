@@ -31,8 +31,14 @@ class QParams(BaseModel):
     episodes: int = 200
     alpha: float = 0.3
     gamma: float = 0.9
-    epsilon: float = 0.1
+    epsilonStart: float = 0.8
+    epsilonEnd: float = 0.05
+    epsilonDecay: float = 0.97
+    evalEvery: int = 20
+    evalEpisodes: int = 2
+    kNearestActions: int = 7
     bucketSize: int = 5
+    distanceBucketSize: float = 10.0
     maxSteps: int = 5000
     seed: str = "12345"
 
@@ -100,4 +106,3 @@ class AcoParams(BaseModel):
 class AcoSolveRequest(BaseModel):
     instance: Instance
     params: Optional[AcoParams] = None
-
