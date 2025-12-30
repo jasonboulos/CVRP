@@ -695,6 +695,8 @@ export class ResultReportComponent implements OnChanges {
 
   private getKeyParameterKeys(algorithm: AlgorithmId): string[] {
     switch (algorithm) {
+      case 'rl':
+        return ['episodes', 'gamma'];
       case 'ga':
         return ['population', 'mutation', 'elitism'];
       case 'tabu':

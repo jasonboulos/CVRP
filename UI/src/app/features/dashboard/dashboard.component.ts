@@ -344,7 +344,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.persistResult(coloredSolution);
     } catch (error) {
       console.error(error);
-      this.showToast('Failed to run solver. Check that the backend is running.');
+      if (this.config.algorithm === 'rl') {
+        this.showToast('RL solver request failed. Check that the backend is running.');
+      } else {
+        this.showToast('Failed to run mock solver.');
+      }
     } finally {
       this.isSolving = false;
     }
