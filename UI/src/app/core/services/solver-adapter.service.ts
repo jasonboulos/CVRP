@@ -21,7 +21,7 @@ interface BuildRoutesOptions {
   rngSeed: string;
 }
 
-interface RlSolveApiResponse {
+interface BackendSolveApiResponse {
   distance: number;
   feasible: boolean;
   vehiclesUsed: number;
@@ -30,13 +30,6 @@ interface RlSolveApiResponse {
   log: string[];
   runtimeMs: number;
 }
-
-const RL_DEFAULTS = {
-  alpha: 0.3,
-  epsilon: 0.1,
-  bucketSize: 5,
-  maxSteps: 5_000,
-};
 
 @Injectable({ providedIn: 'root' })
 export class SolverAdapterService {
@@ -79,15 +72,6 @@ export class SolverAdapterService {
         { key: 'evaporation', label: 'Evaporation', min: 0.1, max: 0.9, step: 0.05, defaultValue: 0.45 },
       ],
     },
-    rl: {
-      id: 'rl',
-      name: 'Reinforcement Learning',
-      description: 'Tabular Q-learning baseline with seeded replay.',
-      parameters: [
-        { key: 'episodes', label: 'Episodes', min: 500, max: 5000, step: 10, defaultValue: 1000 },
-        { key: 'gamma', label: 'Gamma', min: 0.1, max: 0.99, step: 0.01, defaultValue: 0.9 },
-      ],
-    },
   };
 
   getAlgorithms(): AlgorithmSummary[] {
@@ -105,11 +89,6 @@ export class SolverAdapterService {
     parameters: Record<string, number>,
     seed: string,
   ): Promise<SolveResponse> {
-    if (algorithm === 'rl') {
-      console.log('Solving with backend RL service...');
-      return this.solveWithBackendRl(instance, vehicles, parameters, seed);
-    }
-
     if (algorithm === 'ga') {
       console.log('Solving with backend GA service...');
       return this.solveWithBackendGa(instance, vehicles, parameters, seed);
@@ -188,58 +167,6 @@ export class SolverAdapterService {
     });
   }
 
-  // ---------------- BACKEND RL ----------------
-
-  private async solveWithBackendRl(
-    instance: ProblemInstance,
-    vehicles: VehiclesConfig,
-    parameters: Record<string, number>,
-    seed: string,
-  ): Promise<SolveResponse> {
-    const vehicleCount = this.getVehicleCount(vehicles);
-
-    const payload = {
-      instance: {
-        id: instance.id,
-        depot: instance.depot,
-        customers: instance.customers,
-        vehicles: {
-          vehicles: vehicles.vehicles.map((vehicle, index) => ({
-            id: vehicle.id ?? index + 1,
-            capacity: Math.max(1, Math.round(vehicle.capacity)),
-          })),
-        },
-      },
-      params: {
-        episodes: Math.round(parameters['episodes'] ?? 200),
-        alpha: parameters['alpha'] ?? RL_DEFAULTS.alpha,
-        gamma: parameters['gamma'] ?? 0.9,
-        epsilon: parameters['epsilon'] ?? RL_DEFAULTS.epsilon,
-        bucketSize: Math.round(parameters['bucketSize'] ?? RL_DEFAULTS.bucketSize),
-        maxSteps: Math.round(parameters['maxSteps'] ?? RL_DEFAULTS.maxSteps),
-        seed,
-      },
-    };
-
-    const url = `${environment.apiBaseUrl}/api/rl/solve`;
-    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
-    console.log('RL Solve Response:', response);
-    const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
-
-    return {
-      distance: Number(response.distance.toFixed(2)),
-      runtimeMs: response.runtimeMs,
-      feasible: response.feasible,
-      vehiclesUsed: response.vehiclesUsed,
-      routes: coloredRoutes,
-      violations: response.violations,
-      log: response.log,
-      convergence: undefined,
-      runtimeBreakdown: undefined,
-      gap: undefined,
-    };
-  }
-
   // ---------------- BACKEND GA ----------------
 
   private async solveWithBackendGa(
@@ -271,7 +198,7 @@ export class SolverAdapterService {
     };
 
     const url = `${environment.apiBaseUrl}/api/ga/solve`;
-    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    const response = await firstValueFrom(this.http.post<BackendSolveApiResponse>(url, payload));
     console.log('GA Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 
@@ -319,7 +246,7 @@ export class SolverAdapterService {
     };
 
     const url = `${environment.apiBaseUrl}/api/tabu/solve`;
-    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    const response = await firstValueFrom(this.http.post<BackendSolveApiResponse>(url, payload));
     console.log('TABU Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 
@@ -368,7 +295,7 @@ export class SolverAdapterService {
     };
 
     const url = `${environment.apiBaseUrl}/api/sa/solve`;
-    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    const response = await firstValueFrom(this.http.post<BackendSolveApiResponse>(url, payload));
     console.log('SA Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 
@@ -417,7 +344,7 @@ export class SolverAdapterService {
     };
 
     const url = `${environment.apiBaseUrl}/api/aco/solve`;
-    const response = await firstValueFrom(this.http.post<RlSolveApiResponse>(url, payload));
+    const response = await firstValueFrom(this.http.post<BackendSolveApiResponse>(url, payload));
     console.log('ACO Solve Response:', response);
     const coloredRoutes = this.applyRouteColors(response.routes, vehicleCount);
 

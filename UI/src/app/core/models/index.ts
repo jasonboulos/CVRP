@@ -74,7 +74,7 @@ export interface SolverRunConfig {
   seed: string;
 }
 
-export type AlgorithmId = 'tabu' | 'ga' | 'sa' | 'aco' | 'rl';
+export type AlgorithmId = 'tabu' | 'ga' | 'sa' | 'aco';
 
 export interface AlgorithmParameterDefinition {
   key: string;
