@@ -31,7 +31,10 @@ class QParams(BaseModel):
     episodes: int = 200
     alpha: float = 0.3
     gamma: float = 0.9
-    epsilon: float = 0.1
+    epsilon: float = 0.1           # Legacy: used if epsilonStart not set
+    epsilonStart: float = 0.9      # Initial exploration rate (high for early exploration)
+    epsilonMin: float = 0.05       # Minimum exploration rate (low for exploitation)
+    epsilonDecay: float = 0.995    # Decay factor per episode (exponential)
     bucketSize: int = 5
     maxSteps: int = 5000
     seed: str = "12345"

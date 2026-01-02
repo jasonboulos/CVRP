@@ -61,10 +61,10 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
   }> = this.fb.group({
     datasetId: this.fb.control(''),
     vehicles: this.fb.group({
-      count: this.fb.control(3),
+      count: this.fb.control(5),
       capacities: this.fb.array<FormControl<number>>([]),
       sameCapacity: this.fb.control(true),
-      sameCapacityValue: this.fb.control(60),
+      sameCapacityValue: this.fb.control(100),
     }),
     algorithm: this.fb.control<AlgorithmId>('tabu'),
     seed: this.fb.control('12345'),
@@ -344,7 +344,7 @@ export class ControlsPanelComponent implements OnChanges, OnInit, OnDestroy {
     const safeCount = Math.max(1, Math.min(20, Math.round(count) || 0));
     let mutated = false;
     while (array.length < safeCount) {
-      const previousValue = array.length > 0 ? array.at(array.length - 1).value : sameCapacity ? sharedValue : 60;
+      const previousValue = array.length > 0 ? array.at(array.length - 1).value : sameCapacity ? sharedValue : 100;
       const nextValue = sameCapacity
         ? sharedValue
         : Math.max(1, Math.round(existing?.[array.length] ?? previousValue));

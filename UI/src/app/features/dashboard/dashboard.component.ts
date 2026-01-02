@@ -366,7 +366,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return {
       datasetId: 'city-grid',
       vehicles: {
-        vehicles: Array.from({ length: 4 }, (_, index) => ({ id: index + 1, capacity: 60 })),
+        vehicles: Array.from({ length: 5 }, (_, index) => ({ id: index + 1, capacity: 100 })),
       },
       algorithm: defaultAlgorithm,
       parameters,
